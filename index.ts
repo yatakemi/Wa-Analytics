@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import * as dotenv from 'dotenv';
-dotenv.config();
+const dotenvx = require('@dotenvx/dotenvx');
+dotenvx.config();
 
 import { Command } from 'commander';
 import { Octokit } from '@octokit/rest';
@@ -21,10 +21,10 @@ program
   .version('0.1.0');
 
 program
-  .option('--repo <owner/repo>', '分析対象のリポジトリ (例: octocat/Spoon-Knife)')
+  .option('--repo <owner/repo>', '分析対象のリポジリ (例: octocat/Spoon-Knife)')
   .option('--start-date <date>', '分析開始日 (YYYY-MM-DD)')
   .option('--end-date <date>', '分析終了日 (YYYY-MM-DD)')
-  .option('--all-repos', '組織内の全てのリポジトリを分析')
+  .option('--all-repos', '組織内の全てのリポジリを分析')
   .option('--summary', 'サマリーレポートを表示')
   .option('--output-format <format>', 'レポート出力形式 (csv, markdown)', 'markdown')
   .option('--analyze-ai', '生成AIによる分析と対策案の提示');
@@ -74,10 +74,10 @@ async function main() {
   if (options.repo) {
     const [owner, repo] = options.repo.split('/');
     if (!owner || !repo) {
-      console.error('エラー: リポジトリの指定が不正です。owner/repo 形式で指定してください。');
+      console.error('エラー: リポジリの指定が不正です。owner/repo 形式で指定してください。');
       process.exit(1);
     }
-    console.log(`リポジトリ ${owner}/${repo} を分析中...`);
+    console.log(`リポジリ ${owner}/${repo} を分析中...`);
 
     if (startDate && endDate) {
       console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
@@ -91,14 +91,24 @@ async function main() {
       console.log(`取得したIssue数: ${issues.length}`);
 
       console.log('メトリクスを計算中...');
-      const prMetrics = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
-      const issueMetrics = analyzer.calculateIssueMetrics(issues);
+      const { overall: prMetrics, contributors: prContributors } = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
+      const { overall: issueMetrics, contributors: issueContributors } = analyzer.calculateIssueMetrics(issues);
 
-      const allMetrics = { prMetrics, issueMetrics };
+      const allMetrics = { prMetrics, issueMetrics, prContributors, issueContributors };
 
-      console.log('\n--- 分析結果 ---');
+      console.log('\n--- 全体分析結果 ---');
       console.log('Pull Requestメトリクス:', prMetrics);
       console.log('Issueメトリクス:', issueMetrics);
+
+      console.log('\n--- コントリビューター別Pull Requestメトリクス ---');
+      prContributors.forEach((metrics, contributor) => {
+        console.log(`  ${contributor}:`, metrics);
+      });
+
+      console.log('\n--- コントリビューター別Issueメトリクス ---');
+      issueContributors.forEach((metrics, contributor) => {
+        console.log(`  ${contributor}:`, metrics);
+      });
 
       // グラフ生成の例
       if (prMetrics.mergedPullRequests > 0) {
@@ -128,8 +138,8 @@ async function main() {
     }
 
   } else if (options.allRepos) {
-    console.log('全ての組織リポジトリを分析中... (未実装)');
-    // 全リポジトリのデータ収集、分析、レポート生成のロジック
+    console.log('全ての組織リポジリを分析中... (未実装)');
+    // 全リポジリのデータ収集、分析、レポート生成のロジック
   }
 
   console.log('処理が完了しました。');

@@ -4,14 +4,10 @@ import * as path from 'path';
 import { ChartConfiguration, Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns'; // date-fnsアダプターをインポート
 import { stringify } from 'csv-stringify';
+import { TimeSeriesData } from './types';
 
 // Chart.jsのすべてのコンポーネントとアダプターを登録
 Chart.register(...registerables);
-
-interface ChartData {
-  labels: string[];
-  values: number[];
-}
 
 class Reporter {
   private width: number;
@@ -30,20 +26,18 @@ class Reporter {
     this.outputDir = outputDir;
   }
 
-  async generateChart(data: ChartData, filename: string, title: string, yAxisLabel: string): Promise<void> {
+  async generateChart(data: TimeSeriesData, filename: string, title: string, yAxisLabel: string): Promise<void> {
     const configuration: ChartConfiguration<'bar'> = {
       type: 'bar',
       data: {
         labels: data.labels,
-        datasets: [
-          {
-            label: title,
-            data: data.values,
-            backgroundColor: 'rgba(75, 192, 192, 0.6)',
-            borderColor: 'rgba(75, 192, 192, 1)',
-            borderWidth: 1,
-          },
-        ],
+        datasets: [{
+          label: title,
+          data: data.values,
+          backgroundColor: 'rgba(75, 192, 192, 0.6)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        }],
       },
       options: {
         scales: {
@@ -70,21 +64,19 @@ class Reporter {
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
-  async generateLineChart(data: ChartData, filename: string, title: string, yAxisLabel: string): Promise<void> {
+  async generateLineChart(data: TimeSeriesData, filename: string, title: string, yAxisLabel: string): Promise<void> {
     const configuration: ChartConfiguration<'line'> = {
       type: 'line',
       data: {
         labels: data.labels,
-        datasets: [
-          {
-            label: title,
-            data: data.values,
-            borderColor: 'rgba(75, 192, 192, 1)',
-            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-            fill: false,
-            tension: 0.1,
-          },
-        ],
+        datasets: [{
+          label: title,
+          data: data.values,
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          fill: false,
+          tension: 0.1,
+        }],
       },
       options: {
         scales: {
@@ -94,13 +86,13 @@ class Reporter {
               unit: 'day',
               tooltipFormat: 'yyyy-MM-dd',
               displayFormats: {
-                day: 'MM-dd', // 日次表示
-              },
+                day: 'MM-dd' // 日次表示
+              }
             },
             title: {
               display: true,
-              text: '日付',
-            },
+              text: '日付'
+            }
           },
           y: {
             beginAtZero: true,
@@ -125,13 +117,7 @@ class Reporter {
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
-  async generateContributorBarChart(
-    contributorMetrics: Map<string, any>,
-    metricKey: string,
-    filename: string,
-    title: string,
-    yAxisLabel: string,
-  ): Promise<void> {
+  async generateContributorBarChart(contributorMetrics: Map<string, any>, metricKey: string, filename: string, title: string, yAxisLabel: string): Promise<void> {
     const labels: string[] = [];
     const values: number[] = [];
 
@@ -151,15 +137,13 @@ class Reporter {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [
-          {
-            label: title,
-            data: values,
-            backgroundColor: 'rgba(153, 102, 255, 0.6)',
-            borderColor: 'rgba(153, 102, 255, 1)',
-            borderWidth: 1,
-          },
-        ],
+        datasets: [{
+          label: title,
+          data: values,
+          backgroundColor: 'rgba(153, 102, 255, 0.6)',
+          borderColor: 'rgba(153, 102, 255, 1)',
+          borderWidth: 1,
+        }],
       },
       options: {
         indexAxis: 'y', // 棒グラフを横向きにする
@@ -210,16 +194,13 @@ class Reporter {
     await this._writeCsvFile(issueData, 'overall_issue_metrics.csv', ['Metric', 'Value']);
   }
 
-  async generateContributorMetricsCsv(
-    prContributors: Map<string, any>,
-    issueContributors: Map<string, any>,
-  ): Promise<void> {
+  async generateContributorMetricsCsv(prContributors: Map<string, any>, issueContributors: Map<string, any>): Promise<void> {
     if (prContributors.size > 0) {
       const prContributorData = Array.from(prContributors.entries()).map(([contributor, metrics]) => ({
         Contributor: contributor,
         ...metrics,
       }));
-      const prColumns = ['Contributor', ...Object.keys(prContributorData[0]).filter((key) => key !== 'Contributor')];
+      const prColumns = ['Contributor', ...Object.keys(prContributorData[0]).filter(key => key !== 'Contributor')];
       await this._writeCsvFile(prContributorData, 'contributor_pr_metrics.csv', prColumns);
     }
 
@@ -228,10 +209,7 @@ class Reporter {
         Contributor: contributor,
         ...metrics,
       }));
-      const issueColumns = [
-        'Contributor',
-        ...Object.keys(issueContributorData[0]).filter((key) => key !== 'Contributor'),
-      ];
+      const issueColumns = ['Contributor', ...Object.keys(issueContributorData[0]).filter(key => key !== 'Contributor')];
       await this._writeCsvFile(issueContributorData, 'contributor_issue_metrics.csv', issueColumns);
     }
   }
@@ -256,11 +234,7 @@ class Reporter {
         ClosedIssues: issueTimeSeriesData.closedIssues.values[index],
         AvgIssueResolutionTime: issueTimeSeriesData.avgIssueResolutionTime.values[index],
       }));
-      await this._writeCsvFile(data, `issue_time_series_${timeUnit}.csv`, [
-        'Date',
-        'ClosedIssues',
-        'AvgIssueResolutionTime',
-      ]);
+      await this._writeCsvFile(data, `issue_time_series_${timeUnit}.csv`, ['Date', 'ClosedIssues', 'AvgIssueResolutionTime']);
     }
   }
 

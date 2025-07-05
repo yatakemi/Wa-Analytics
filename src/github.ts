@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { readCache, writeCache } from './cache';
+import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile } from './types';
 
 class GitHubClient {
   private octokit: Octokit;
@@ -10,8 +11,8 @@ class GitHubClient {
     });
   }
 
-  private async fetchDataAndCache(cacheKey: string, fetchFunction: () => Promise<any[]>): Promise<any[]> {
-    const cachedData = await readCache<any[]>(cacheKey);
+  private async fetchDataAndCache<T>(cacheKey: string, fetchFunction: () => Promise<T>): Promise<T> {
+    const cachedData = await readCache<T>(cacheKey);
     if (cachedData) {
       return cachedData;
     }
@@ -21,10 +22,10 @@ class GitHubClient {
     return data;
   }
 
-  async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
+  async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<PullRequest[]> {
     const cacheKey = `pulls-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
     return this.fetchDataAndCache(cacheKey, async () => {
-      const pulls: any[] = [];
+      const pulls: PullRequest[] = [];
       let page = 1;
       let hasMore = true;
 
@@ -38,10 +39,10 @@ class GitHubClient {
           page,
         });
 
-        const filteredPulls = response.data.filter((pull) => {
+        const filteredPulls = response.data.filter(pull => {
           const mergedAt = pull.merged_at ? new Date(pull.merged_at) : null;
           return pull.merged_at && mergedAt && mergedAt >= startDate && mergedAt <= endDate;
-        });
+        }) as PullRequest[];
 
         pulls.push(...filteredPulls);
 
@@ -56,10 +57,10 @@ class GitHubClient {
     });
   }
 
-  async getIssues(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
+  async getIssues(owner: string, repo: string, startDate: Date, endDate: Date): Promise<Issue[]> {
     const cacheKey = `issues-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
     return this.fetchDataAndCache(cacheKey, async () => {
-      const issues: any[] = [];
+      const issues: Issue[] = [];
       let page = 1;
       let hasMore = true;
 
@@ -74,10 +75,10 @@ class GitHubClient {
           page,
         });
 
-        const filteredIssues = response.data.filter((issue) => {
+        const filteredIssues = response.data.filter(issue => {
           const closedAt = issue.closed_at ? new Date(issue.closed_at) : null;
           return issue.closed_at && closedAt && closedAt >= startDate && closedAt <= endDate && !issue.pull_request;
-        });
+        }) as Issue[];
 
         issues.push(...filteredIssues);
 
@@ -92,10 +93,10 @@ class GitHubClient {
     });
   }
 
-  async getCommits(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
+  async getCommits(owner: string, repo: string, startDate: Date, endDate: Date): Promise<Commit[]> {
     const cacheKey = `commits-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
     return this.fetchDataAndCache(cacheKey, async () => {
-      const commits: any[] = [];
+      const commits: Commit[] = [];
       let page = 1;
       let hasMore = true;
 
@@ -110,7 +111,7 @@ class GitHubClient {
           page,
         });
 
-        commits.push(...response.data);
+        commits.push(...(response.data as Commit[]));
 
         if (response.data.length < 100) {
           hasMore = false;
@@ -123,10 +124,10 @@ class GitHubClient {
     });
   }
 
-  async getPullRequestReviewComments(owner: string, repo: string, pull_number: number): Promise<any[]> {
+  async getPullRequestReviewComments(owner: string, repo: string, pull_number: number): Promise<ReviewComment[]> {
     const cacheKey = `pr-comments-${owner}-${repo}-${pull_number}`;
     return this.fetchDataAndCache(cacheKey, async () => {
-      const comments: any[] = [];
+      const comments: ReviewComment[] = [];
       let page = 1;
       let hasMore = true;
 
@@ -140,7 +141,7 @@ class GitHubClient {
           page,
         });
 
-        comments.push(...response.data);
+        comments.push(...(response.data as ReviewComment[]));
 
         if (response.data.length < 100) {
           hasMore = false;
@@ -153,7 +154,7 @@ class GitHubClient {
     });
   }
 
-  async getPullRequestFiles(owner: string, repo: string, pull_number: number): Promise<any[]> {
+  async getPullRequestFiles(owner: string, repo: string, pull_number: number): Promise<PullRequestFile[]> {
     const cacheKey = `pr-files-${owner}-${repo}-${pull_number}`;
     return this.fetchDataAndCache(cacheKey, async () => {
       const response = await this.octokit.pulls.listFiles({
@@ -161,7 +162,7 @@ class GitHubClient {
         repo,
         pull_number,
       });
-      return response.data;
+      return response.data as PullRequestFile[];
     });
   }
 }

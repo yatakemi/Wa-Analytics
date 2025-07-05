@@ -1,20 +1,21 @@
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { AllMetrics } from './types';
+
 class AIAnalyzer {
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
+
   constructor(apiKey: string) {
     if (!apiKey) {
       throw new Error('AI_API_KEY is required for AI analysis.');
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-pro' });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
   }
-  async analyzeMetrics(metrics: any): Promise<string> {
-    const prompt = `以下のGitHubリポジトリの生産性メトリクスを分析し、現状の課題と改善のための具体的な対策案を日本語で提案してください.\n\nメトリクス:\n${JSON.stringify(
-      metrics,
-      null,
-      2,
-    )}\n\n分析と対策案:`;
+
+  async analyzeMetrics(metrics: AllMetrics): Promise<string> {
+    const prompt = `以下のGitHubリポジトリの生産性メトリクスを分析し、現状の課題と改善のための具体的な対策案を日本語で提案してください。\n\nメトリクス:\n${JSON.stringify(metrics, null, 2)}\n\n分析と対策案:`;
+
     try {
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
@@ -26,4 +27,5 @@ class AIAnalyzer {
     }
   }
 }
+
 export default AIAnalyzer;

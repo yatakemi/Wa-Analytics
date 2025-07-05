@@ -32,7 +32,9 @@ class Reporter {
   }
 
   private _getMarkdownImagePath(filename: string): string {
-    return filename; // Markdownファイルと同じディレクトリにあるため、ファイル名のみを返す
+    // outputDirからの相対パスを生成
+    const relativePath = path.relative(this.outputDir, path.join(this.outputDir, filename));
+    return relativePath.replace(/\\/g, '/'); // Markdownで正しく解釈されるようにスラッシュに変換
   }
 
   private async _ensureDirectoryExistence(filePath: string): Promise<void> {
@@ -264,27 +266,75 @@ class Reporter {
     }
   }
 
-  async generateMarkdownReport(allMetrics: AllMetrics, filename: string): Promise<void> {
-    const outputPath = path.join(this.outputDir, filename);
-    await this._ensureDirectoryExistence(outputPath);
-
+  async generateAllReports(allMetrics: AllMetrics, timeUnit: string, outputFormat: string, owner: string, repo: string): Promise<void> {
+    // グラフ生成
     // Overall Metrics Charts
-    await this.generateChart({ labels: ['Merged PRs'], values: [allMetrics.prMetrics.mergedPullRequests] }, 'overall_pr_merged_pull_requests.png', 'マージされたPR数', 'PR数');
-    await this.generateChart({ labels: ['Avg Time to Merge'], values: [allMetrics.prMetrics.avgTimeToMerge] }, 'overall_pr_avg_time_to_merge.png', '平均マージ時間', '時間 (分)');
-    await this.generateChart({ labels: ['Closed Issues'], values: [allMetrics.issueMetrics.closedIssues] }, 'overall_issue_closed_issues.png', 'クローズされたIssue数', 'Issue数');
-    await this.generateChart({ labels: ['Avg Issue Resolution Time'], values: [allMetrics.issueMetrics.avgIssueResolutionTime] }, 'overall_issue_avg_issue_resolution_time.png', '平均Issue解決時間', '時間 (分)');
+    await this.generateChart({ labels: ['Merged PRs'], values: [allMetrics.prMetrics.mergedPullRequests] }, path.join(owner, repo, 'overall_pr_merged_pull_requests.png'), 'マージされたPR数', 'PR数');
+    await this.generateChart({ labels: ['Avg Time to Merge'], values: [allMetrics.prMetrics.avgTimeToMerge] }, path.join(owner, repo, 'overall_pr_avg_time_to_merge.png'), '平均マージ時間', '時間 (分)');
+    await this.generateChart({ labels: ['Closed Issues'], values: [allMetrics.issueMetrics.closedIssues] }, path.join(owner, repo, 'overall_issue_closed_issues.png'), 'クローズされたIssue数', 'Issue数');
+    await this.generateChart({ labels: ['Avg Issue Resolution Time'], values: [allMetrics.issueMetrics.avgIssueResolutionTime] }, path.join(owner, repo, 'overall_issue_avg_issue_resolution_time.png'), '平均Issue解決時間', '時間 (分)');
 
     // Contributor Metrics Charts
-    await this.generateContributorBarChart(allMetrics.prContributors, 'mergedPullRequests', 'contributor_pr_merged_pull_requests.png', 'コントリビューター別マージPR数', 'PR数');
-    await this.generateContributorBarChart(allMetrics.prContributors, 'totalTimeToMerge', 'contributor_pr_avg_time_to_merge.png', 'コントリビューター別平均マージ時間', '時間 (分)');
-    await this.generateContributorBarChart(allMetrics.issueContributors, 'closedIssues', 'contributor_issue_closed_issues.png', 'コントリビューター別クローズIssue数', 'Issue数');
-    await this.generateContributorBarChart(allMetrics.issueContributors, 'totalIssueResolutionTime', 'contributor_issue_avg_issue_resolution_time.png', 'コントリビューター別平均Issue解決時間', '時間 (分)');
+    await this.generateContributorBarChart(allMetrics.prContributors, 'mergedPullRequests', path.join(owner, repo, 'contributor_pr_merged_pull_requests.png'), 'コントリビューター別マージPR数', 'PR数');
+    await this.generateContributorBarChart(allMetrics.prContributors, 'totalTimeToMerge', path.join(owner, repo, 'contributor_pr_avg_time_to_merge.png'), 'コントリビューター別平均マージ時間', '時間 (分)');
+    await this.generateContributorBarChart(allMetrics.issueContributors, 'closedIssues', path.join(owner, repo, 'contributor_issue_closed_issues.png'), 'コントリビューター別クローズIssue数', 'Issue数');
+    await this.generateContributorBarChart(allMetrics.issueContributors, 'totalIssueResolutionTime', path.join(owner, repo, 'contributor_issue_avg_issue_resolution_time.png'), 'コントリビューター別平均Issue解決時間', '時間 (分)');
 
     // Time Series Charts
-    await this.generateLineChart(allMetrics.prTimeSeries.daily.mergedPullRequests, 'pr_time_series_merged_pull_requests_daily.png', '日次マージされたPR数', 'PR数');
-    await this.generateLineChart(allMetrics.prTimeSeries.daily.avgTimeToMerge, 'pr_time_series_avg_time_to_merge_daily.png', '日次平均マージ時間', '時間 (分)');
-    await this.generateLineChart(allMetrics.issueTimeSeries.daily.closedIssues, 'issue_time_series_closed_issues_daily.png', '日次クローズされたIssue数', 'Issue数');
-    await this.generateLineChart(allMetrics.issueTimeSeries.daily.avgIssueResolutionTime, 'issue_time_series_avg_issue_resolution_time_daily.png', '日次平均解決時間', '時間 (分)');
+    let prMergedTimeSeriesData: TimeSeriesData;
+    let prAvgTimeToMergeTimeSeriesData: TimeSeriesData;
+    let issueClosedTimeSeriesData: TimeSeriesData;
+    let issueAvgResolutionTimeSeriesData: TimeSeriesData;
+
+    switch (timeUnit) {
+      case 'daily':
+        prMergedTimeSeriesData = allMetrics.prTimeSeries.daily.mergedPullRequests;
+        prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.daily.avgTimeToMerge;
+        issueClosedTimeSeriesData = allMetrics.issueTimeSeries.daily.closedIssues;
+        issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.daily.avgIssueResolutionTime;
+        break;
+      case 'weekly':
+        prMergedTimeSeriesData = allMetrics.prTimeSeries.weekly.mergedPullRequests;
+        prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.weekly.avgTimeToMerge;
+        issueClosedTimeSeriesData = allMetrics.issueTimeSeries.weekly.closedIssues;
+        issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.weekly.avgIssueResolutionTime;
+        break;
+      case 'monthly':
+        prMergedTimeSeriesData = allMetrics.prTimeSeries.monthly.mergedPullRequests;
+        prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.monthly.avgTimeToMerge;
+        issueClosedTimeSeriesData = allMetrics.issueTimeSeries.monthly.closedIssues;
+        issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.monthly.avgIssueResolutionTime;
+        break;
+      default:
+        console.warn('警告: 無効な時間単位が指定されました。日次データを使用します。');
+        prMergedTimeSeriesData = allMetrics.prTimeSeries.daily.mergedPullRequests;
+        prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.daily.avgTimeToMerge;
+        issueClosedTimeSeriesData = allMetrics.issueTimeSeries.daily.closedIssues;
+        issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.daily.avgIssueResolutionTime;
+    }
+
+    if (prMergedTimeSeriesData.labels.length > 0) {
+      await this.generateLineChart(prMergedTimeSeriesData, path.join(owner, repo, `pr_time_series_merged_pull_requests_${timeUnit}.png`), `時系列マージされたPR数 (${timeUnit})`, 'PR数');
+      await this.generateLineChart(prAvgTimeToMergeTimeSeriesData, path.join(owner, repo, `pr_time_series_avg_time_to_merge_${timeUnit}.png`), `時系列平均マージ時間 (${timeUnit})`, '時間 (分)');
+    }
+    if (issueClosedTimeSeriesData.labels.length > 0) {
+      await this.generateLineChart(issueClosedTimeSeriesData, path.join(owner, repo, `issue_time_series_closed_issues_${timeUnit}.png`), `時系列クローズされたIssue数 (${timeUnit})`, 'Issue数');
+      await this.generateLineChart(issueAvgResolutionTimeSeriesData, path.join(owner, repo, `issue_time_series_avg_issue_resolution_time_${timeUnit}.png`), `時系列平均解決時間 (${timeUnit})`, '時間 (分)');
+    }
+
+    // レポート生成
+    if (outputFormat === 'csv') {
+      await this.generateOverallMetricsCsv(allMetrics.prMetrics, allMetrics.issueMetrics);
+      await this.generateContributorMetricsCsv(allMetrics.prContributors, allMetrics.issueContributors);
+      await this.generateTimeSeriesCsv(allMetrics.prTimeSeries, allMetrics.issueTimeSeries, timeUnit);
+    } else if (outputFormat === 'markdown') {
+      await this.generateMarkdownReport(allMetrics, path.join(owner, repo, 'report.md'), timeUnit);
+    }
+  }
+
+  async generateMarkdownReport(allMetrics: AllMetrics, filename: string, timeUnit: string): Promise<void> {
+    const outputPath = path.join(this.outputDir, filename);
+    await this._ensureDirectoryExistence(outputPath);
 
     let markdownContent = `# 生産性レポート\n\n`;
 

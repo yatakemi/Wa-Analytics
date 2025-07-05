@@ -35,13 +35,15 @@ class Reporter {
       type: 'bar',
       data: {
         labels: data.labels,
-        datasets: [{
-          label: title,
-          data: data.values,
-          backgroundColor: 'rgba(75, 192, 192, 0.6)',
-          borderColor: 'rgba(75, 192, 192, 1)',
-          borderWidth: 1,
-        }],
+        datasets: [
+          {
+            label: title,
+            data: data.values,
+            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 1,
+          },
+        ],
       },
       options: {
         scales: {
@@ -73,14 +75,16 @@ class Reporter {
       type: 'line',
       data: {
         labels: data.labels,
-        datasets: [{
-          label: title,
-          data: data.values,
-          borderColor: 'rgba(75, 192, 192, 1)',
-          backgroundColor: 'rgba(75, 192, 192, 0.2)',
-          fill: false,
-          tension: 0.1,
-        }],
+        datasets: [
+          {
+            label: title,
+            data: data.values,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            fill: false,
+            tension: 0.1,
+          },
+        ],
       },
       options: {
         scales: {
@@ -90,13 +94,13 @@ class Reporter {
               unit: 'day',
               tooltipFormat: 'yyyy-MM-dd',
               displayFormats: {
-                day: 'MM-dd' // 日次表示
-              }
+                day: 'MM-dd', // 日次表示
+              },
             },
             title: {
               display: true,
-              text: '日付'
-            }
+              text: '日付',
+            },
           },
           y: {
             beginAtZero: true,
@@ -121,7 +125,13 @@ class Reporter {
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
-  async generateContributorBarChart(contributorMetrics: Map<string, any>, metricKey: string, filename: string, title: string, yAxisLabel: string): Promise<void> {
+  async generateContributorBarChart(
+    contributorMetrics: Map<string, any>,
+    metricKey: string,
+    filename: string,
+    title: string,
+    yAxisLabel: string,
+  ): Promise<void> {
     const labels: string[] = [];
     const values: number[] = [];
 
@@ -141,13 +151,15 @@ class Reporter {
       type: 'bar',
       data: {
         labels: labels,
-        datasets: [{
-          label: title,
-          data: values,
-          backgroundColor: 'rgba(153, 102, 255, 0.6)',
-          borderColor: 'rgba(153, 102, 255, 1)',
-          borderWidth: 1,
-        }],
+        datasets: [
+          {
+            label: title,
+            data: values,
+            backgroundColor: 'rgba(153, 102, 255, 0.6)',
+            borderColor: 'rgba(153, 102, 255, 1)',
+            borderWidth: 1,
+          },
+        ],
       },
       options: {
         indexAxis: 'y', // 棒グラフを横向きにする
@@ -175,19 +187,81 @@ class Reporter {
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
-  async generateCsvReport(data: any, filename: string): Promise<void> {
+  private async _writeCsvFile(data: any[], filename: string, columns: string[]): Promise<void> {
     const outputPath = path.join(this.outputDir, filename);
-    const columns = Object.keys(data);
-    const values = Object.values(data);
-
-    stringify([columns, values], (err, output) => {
-      if (err) {
-        console.error('CSV生成エラー:', err);
-        return;
-      }
-      fs.writeFileSync(outputPath, output);
-      console.log(`CSVレポートを ${outputPath} に保存しました。`);
+    return new Promise((resolve, reject) => {
+      stringify(data, { header: true, columns: columns }, (err, output) => {
+        if (err) {
+          console.error(`CSV生成エラー (${filename}):`, err);
+          return reject(err);
+        }
+        fs.writeFileSync(outputPath, output);
+        console.log(`CSVレポートを ${outputPath} に保存しました。`);
+        resolve();
+      });
     });
+  }
+
+  async generateOverallMetricsCsv(prMetrics: any, issueMetrics: any): Promise<void> {
+    const prData = Object.entries(prMetrics).map(([key, value]) => ({ Metric: key, Value: value }));
+    await this._writeCsvFile(prData, 'overall_pr_metrics.csv', ['Metric', 'Value']);
+
+    const issueData = Object.entries(issueMetrics).map(([key, value]) => ({ Metric: key, Value: value }));
+    await this._writeCsvFile(issueData, 'overall_issue_metrics.csv', ['Metric', 'Value']);
+  }
+
+  async generateContributorMetricsCsv(
+    prContributors: Map<string, any>,
+    issueContributors: Map<string, any>,
+  ): Promise<void> {
+    if (prContributors.size > 0) {
+      const prContributorData = Array.from(prContributors.entries()).map(([contributor, metrics]) => ({
+        Contributor: contributor,
+        ...metrics,
+      }));
+      const prColumns = ['Contributor', ...Object.keys(prContributorData[0]).filter((key) => key !== 'Contributor')];
+      await this._writeCsvFile(prContributorData, 'contributor_pr_metrics.csv', prColumns);
+    }
+
+    if (issueContributors.size > 0) {
+      const issueContributorData = Array.from(issueContributors.entries()).map(([contributor, metrics]) => ({
+        Contributor: contributor,
+        ...metrics,
+      }));
+      const issueColumns = [
+        'Contributor',
+        ...Object.keys(issueContributorData[0]).filter((key) => key !== 'Contributor'),
+      ];
+      await this._writeCsvFile(issueContributorData, 'contributor_issue_metrics.csv', issueColumns);
+    }
+  }
+
+  async generateTimeSeriesCsv(prTimeSeries: any, issueTimeSeries: any, timeUnit: string): Promise<void> {
+    // PR Time Series
+    const prTimeSeriesData = prTimeSeries[timeUnit];
+    if (prTimeSeriesData.mergedPullRequests.labels.length > 0) {
+      const data = prTimeSeriesData.mergedPullRequests.labels.map((label: string, index: number) => ({
+        Date: label,
+        MergedPRs: prTimeSeriesData.mergedPullRequests.values[index],
+        AvgTimeToMerge: prTimeSeriesData.avgTimeToMerge.values[index],
+      }));
+      await this._writeCsvFile(data, `pr_time_series_${timeUnit}.csv`, ['Date', 'MergedPRs', 'AvgTimeToMerge']);
+    }
+
+    // Issue Time Series
+    const issueTimeSeriesData = issueTimeSeries[timeUnit];
+    if (issueTimeSeriesData.closedIssues.labels.length > 0) {
+      const data = issueTimeSeriesData.closedIssues.labels.map((label: string, index: number) => ({
+        Date: label,
+        ClosedIssues: issueTimeSeriesData.closedIssues.values[index],
+        AvgIssueResolutionTime: issueTimeSeriesData.avgIssueResolutionTime.values[index],
+      }));
+      await this._writeCsvFile(data, `issue_time_series_${timeUnit}.csv`, [
+        'Date',
+        'ClosedIssues',
+        'AvgIssueResolutionTime',
+      ]);
+    }
   }
 
   // Markdownレポート生成のスケルトン

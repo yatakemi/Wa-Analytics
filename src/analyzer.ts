@@ -54,7 +54,15 @@ class Analyzer {
     this.githubClient = githubClient;
   }
 
-  async calculatePullRequestMetrics(owner: string, repo: string, pulls: any[]): Promise<{ overall: PullRequestMetrics; contributors: Map<string, ContributorPullRequestMetrics>; timeSeries: PullRequestTimeSeries }> {
+  async calculatePullRequestMetrics(
+    owner: string,
+    repo: string,
+    pulls: any[],
+  ): Promise<{
+    overall: PullRequestMetrics;
+    contributors: Map<string, ContributorPullRequestMetrics>;
+    timeSeries: PullRequestTimeSeries;
+  }> {
     let totalTimeToFirstReview = 0;
     let totalTimeToMerge = 0;
     let totalLinesChanged = 0;
@@ -77,7 +85,7 @@ class Analyzer {
 
     for (let i = 0; i < totalPulls; i++) {
       const pull = pulls[i];
-      if ((i + 1) % 10 === 0 || (i + 1) === totalPulls) {
+      if ((i + 1) % 10 === 0 || i + 1 === totalPulls) {
         console.log(`    ${i + 1}/${totalPulls} 件のPull Requestを処理しました。`);
       }
 
@@ -156,7 +164,7 @@ class Analyzer {
         // Time to First Review: Find the earliest review comment
         const firstReview = reviewComments.reduce((min: Date | null, comment: any) => {
           const commentDate = parseISO(comment.created_at);
-          return (min === null || commentDate < min) ? commentDate : min;
+          return min === null || commentDate < min ? commentDate : min;
         }, null);
 
         if (firstReview) {
@@ -197,39 +205,69 @@ class Analyzer {
     const sortedDailyKeys = Object.keys(mergedPullRequestsDailyTimeSeries).sort();
     const mergedPRDailyTimeSeriesData: TimeSeriesData = {
       labels: sortedDailyKeys,
-      values: sortedDailyKeys.map(day => mergedPullRequestsDailyTimeSeries[day]),
+      values: sortedDailyKeys.map((day) => mergedPullRequestsDailyTimeSeries[day]),
     };
     const avgTimeToMergeDailyTimeSeriesData: TimeSeriesData = {
       labels: sortedDailyKeys,
-      values: sortedDailyKeys.map(day => timeToMergeDailyTimeSeries[day] ? timeToMergeDailyTimeSeries[day].total / timeToMergeDailyTimeSeries[day].count : 0),
+      values: sortedDailyKeys.map((day) =>
+        timeToMergeDailyTimeSeries[day]
+          ? timeToMergeDailyTimeSeries[day].total / timeToMergeDailyTimeSeries[day].count
+          : 0,
+      ),
     };
 
     // Prepare weekly time series data
     const sortedWeeklyKeys = Object.keys(mergedPullRequestsWeeklyTimeSeries).sort();
     const mergedPRWeeklyTimeSeriesData: TimeSeriesData = {
       labels: sortedWeeklyKeys,
-      values: sortedWeeklyKeys.map(week => mergedPullRequestsWeeklyTimeSeries[week]),
+      values: sortedWeeklyKeys.map((week) => mergedPullRequestsWeeklyTimeSeries[week]),
     };
     const avgTimeToMergeWeeklyTimeSeriesData: TimeSeriesData = {
       labels: sortedWeeklyKeys,
-      values: sortedWeeklyKeys.map(week => timeToMergeWeeklyTimeSeries[week] ? timeToMergeWeeklyTimeSeries[week].total / timeToMergeWeeklyTimeSeries[week].count : 0),
+      values: sortedWeeklyKeys.map((week) =>
+        timeToMergeWeeklyTimeSeries[week]
+          ? timeToMergeWeeklyTimeSeries[week].total / timeToMergeWeeklyTimeSeries[week].count
+          : 0,
+      ),
     };
 
     // Prepare monthly time series data
     const sortedMonthlyKeys = Object.keys(mergedPullRequestsMonthlyTimeSeries).sort();
     const mergedPRMonthlyTimeSeriesData: TimeSeriesData = {
       labels: sortedMonthlyKeys,
-      values: sortedMonthlyKeys.map(month => mergedPullRequestsMonthlyTimeSeries[month]),
+      values: sortedMonthlyKeys.map((month) => mergedPullRequestsMonthlyTimeSeries[month]),
     };
     const avgTimeToMergeMonthlyTimeSeriesData: TimeSeriesData = {
       labels: sortedMonthlyKeys,
-      values: sortedMonthlyKeys.map(month => timeToMergeMonthlyTimeSeries[month] ? timeToMergeMonthlyTimeSeries[month].total / timeToMergeMonthlyTimeSeries[month].count : 0),
+      values: sortedMonthlyKeys.map((month) =>
+        timeToMergeMonthlyTimeSeries[month]
+          ? timeToMergeMonthlyTimeSeries[month].total / timeToMergeMonthlyTimeSeries[month].count
+          : 0,
+      ),
     };
 
-    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { mergedPullRequests: mergedPRDailyTimeSeriesData, avgTimeToMerge: avgTimeToMergeDailyTimeSeriesData }, weekly: { mergedPullRequests: mergedPRWeeklyTimeSeriesData, avgTimeToMerge: avgTimeToMergeWeeklyTimeSeriesData }, monthly: { mergedPullRequests: mergedPRMonthlyTimeSeriesData, avgTimeToMerge: avgTimeToMergeMonthlyTimeSeriesData } } };
+    return {
+      overall: overallMetrics,
+      contributors: contributorMetrics,
+      timeSeries: {
+        daily: { mergedPullRequests: mergedPRDailyTimeSeriesData, avgTimeToMerge: avgTimeToMergeDailyTimeSeriesData },
+        weekly: {
+          mergedPullRequests: mergedPRWeeklyTimeSeriesData,
+          avgTimeToMerge: avgTimeToMergeWeeklyTimeSeriesData,
+        },
+        monthly: {
+          mergedPullRequests: mergedPRMonthlyTimeSeriesData,
+          avgTimeToMerge: avgTimeToMergeMonthlyTimeSeriesData,
+        },
+      },
+    };
   }
 
-  calculateIssueMetrics(issues: any[]): { overall: IssueMetrics; contributors: Map<string, ContributorIssueMetrics>; timeSeries: IssueTimeSeries } {
+  calculateIssueMetrics(issues: any[]): {
+    overall: IssueMetrics;
+    contributors: Map<string, ContributorIssueMetrics>;
+    timeSeries: IssueTimeSeries;
+  } {
     let totalIssueResolutionTime = 0;
     const contributorMetrics = new Map<string, ContributorIssueMetrics>();
 
@@ -247,7 +285,7 @@ class Analyzer {
 
     for (let i = 0; i < totalIssues; i++) {
       const issue = issues[i];
-      if ((i + 1) % 10 === 0 || (i + 1) === totalIssues) {
+      if ((i + 1) % 10 === 0 || i + 1 === totalIssues) {
         console.log(`    ${i + 1}/${totalIssues} 件のIssueを処理しました。`);
       }
 
@@ -326,36 +364,65 @@ class Analyzer {
     const sortedDailyKeys = Object.keys(closedIssuesDailyTimeSeries).sort();
     const closedIssueDailyTimeSeriesData: TimeSeriesData = {
       labels: sortedDailyKeys,
-      values: sortedDailyKeys.map(day => closedIssuesDailyTimeSeries[day]),
+      values: sortedDailyKeys.map((day) => closedIssuesDailyTimeSeries[day]),
     };
     const avgIssueResolutionDailyTimeSeriesData: TimeSeriesData = {
       labels: sortedDailyKeys,
-      values: sortedDailyKeys.map(day => issueResolutionDailyTimeSeries[day] ? issueResolutionDailyTimeSeries[day].total / issueResolutionDailyTimeSeries[day].count : 0),
+      values: sortedDailyKeys.map((day) =>
+        issueResolutionDailyTimeSeries[day]
+          ? issueResolutionDailyTimeSeries[day].total / issueResolutionDailyTimeSeries[day].count
+          : 0,
+      ),
     };
 
     // Prepare weekly time series data
     const sortedWeeklyKeys = Object.keys(closedIssuesWeeklyTimeSeries).sort();
     const closedIssueWeeklyTimeSeriesData: TimeSeriesData = {
       labels: sortedWeeklyKeys,
-      values: sortedWeeklyKeys.map(week => closedIssuesWeeklyTimeSeries[week]),
+      values: sortedWeeklyKeys.map((week) => closedIssuesWeeklyTimeSeries[week]),
     };
     const avgIssueResolutionWeeklyTimeSeriesData: TimeSeriesData = {
       labels: sortedWeeklyKeys,
-      values: sortedWeeklyKeys.map(week => issueResolutionWeeklyTimeSeries[week] ? issueResolutionWeeklyTimeSeries[week].total / issueResolutionWeeklyTimeSeries[week].count : 0),
+      values: sortedWeeklyKeys.map((week) =>
+        issueResolutionWeeklyTimeSeries[week]
+          ? issueResolutionWeeklyTimeSeries[week].total / issueResolutionWeeklyTimeSeries[week].count
+          : 0,
+      ),
     };
 
     // Prepare monthly time series data
     const sortedMonthlyKeys = Object.keys(closedIssuesMonthlyTimeSeries).sort();
     const closedIssueMonthlyTimeSeriesData: TimeSeriesData = {
       labels: sortedMonthlyKeys,
-      values: sortedMonthlyKeys.map(month => closedIssuesMonthlyTimeSeries[month]),
+      values: sortedMonthlyKeys.map((month) => closedIssuesMonthlyTimeSeries[month]),
     };
     const avgIssueResolutionMonthlyTimeSeriesData: TimeSeriesData = {
       labels: sortedMonthlyKeys,
-      values: sortedMonthlyKeys.map(month => issueResolutionMonthlyTimeSeries[month] ? issueResolutionMonthlyTimeSeries[month].total / issueResolutionMonthlyTimeSeries[month].count : 0),
+      values: sortedMonthlyKeys.map((month) =>
+        issueResolutionMonthlyTimeSeries[month]
+          ? issueResolutionMonthlyTimeSeries[month].total / issueResolutionMonthlyTimeSeries[month].count
+          : 0,
+      ),
     };
 
-    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { closedIssues: closedIssueDailyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionDailyTimeSeriesData }, weekly: { closedIssues: closedIssueWeeklyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionWeeklyTimeSeriesData }, monthly: { closedIssues: closedIssueMonthlyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionMonthlyTimeSeriesData } } };
+    return {
+      overall: overallMetrics,
+      contributors: contributorMetrics,
+      timeSeries: {
+        daily: {
+          closedIssues: closedIssueDailyTimeSeriesData,
+          avgIssueResolutionTime: avgIssueResolutionDailyTimeSeriesData,
+        },
+        weekly: {
+          closedIssues: closedIssueWeeklyTimeSeriesData,
+          avgIssueResolutionTime: avgIssueResolutionWeeklyTimeSeriesData,
+        },
+        monthly: {
+          closedIssues: closedIssueMonthlyTimeSeriesData,
+          avgIssueResolutionTime: avgIssueResolutionMonthlyTimeSeriesData,
+        },
+      },
+    };
   }
 }
 

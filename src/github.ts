@@ -38,7 +38,7 @@ class GitHubClient {
           page,
         });
 
-        const filteredPulls = response.data.filter(pull => {
+        const filteredPulls = response.data.filter((pull) => {
           const mergedAt = pull.merged_at ? new Date(pull.merged_at) : null;
           return pull.merged_at && mergedAt && mergedAt >= startDate && mergedAt <= endDate;
         });
@@ -74,7 +74,7 @@ class GitHubClient {
           page,
         });
 
-        const filteredIssues = response.data.filter(issue => {
+        const filteredIssues = response.data.filter((issue) => {
           const closedAt = issue.closed_at ? new Date(issue.closed_at) : null;
           return issue.closed_at && closedAt && closedAt >= startDate && closedAt <= endDate && !issue.pull_request;
         });

@@ -27,7 +27,7 @@ export async function readCache<T>(key: string): Promise<T | null> {
         return cacheEntry.data;
       } else {
         console.log(`  ${key} のキャッシュが期限切れです。`);
-        fs.promises.unlink(filePath).catch(err => console.error(`キャッシュファイル削除エラー (${filePath}):`, err));
+        fs.promises.unlink(filePath).catch((err) => console.error(`キャッシュファイル削除エラー (${filePath}):`, err));
       }
     } catch (error) {
       console.error(`キャッシュ読み込みエラー (${filePath}):`, error);

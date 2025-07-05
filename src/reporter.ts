@@ -4,10 +4,15 @@ import * as path from 'path';
 import { ChartConfiguration, Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns'; // date-fnsアダプターをインポート
 import { stringify } from 'csv-stringify';
-import { TimeSeriesData } from './types';
+import { AllMetrics, TimeSeriesData } from './types';
 
 // Chart.jsのすべてのコンポーネントとアダプターを登録
 Chart.register(...registerables);
+
+interface ChartData {
+  labels: string[];
+  values: number[];
+}
 
 class Reporter {
   private width: number;
@@ -26,7 +31,19 @@ class Reporter {
     this.outputDir = outputDir;
   }
 
-  async generateChart(data: TimeSeriesData, filename: string, title: string, yAxisLabel: string): Promise<void> {
+  private async _ensureDirectoryExistence(filePath: string): Promise<void> {
+    const dirname = path.dirname(filePath);
+    try {
+      await fs.promises.access(dirname);
+    } catch (e) {
+      await fs.promises.mkdir(dirname, { recursive: true });
+    }
+  }
+
+  async generateChart(data: ChartData, filename: string, title: string, yAxisLabel: string): Promise<void> {
+    const outputPath = path.join(this.outputDir, filename);
+    await this._ensureDirectoryExistence(outputPath);
+
     const configuration: ChartConfiguration<'bar'> = {
       type: 'bar',
       data: {
@@ -59,12 +76,14 @@ class Reporter {
     };
 
     const buffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
-    const outputPath = path.join(this.outputDir, filename);
     fs.writeFileSync(outputPath, buffer);
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
   async generateLineChart(data: TimeSeriesData, filename: string, title: string, yAxisLabel: string): Promise<void> {
+    const outputPath = path.join(this.outputDir, filename);
+    await this._ensureDirectoryExistence(outputPath);
+
     const configuration: ChartConfiguration<'line'> = {
       type: 'line',
       data: {
@@ -112,12 +131,14 @@ class Reporter {
     };
 
     const buffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
-    const outputPath = path.join(this.outputDir, filename);
     fs.writeFileSync(outputPath, buffer);
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
   async generateContributorBarChart(contributorMetrics: Map<string, any>, metricKey: string, filename: string, title: string, yAxisLabel: string): Promise<void> {
+    const outputPath = path.join(this.outputDir, filename);
+    await this._ensureDirectoryExistence(outputPath);
+
     const labels: string[] = [];
     const values: number[] = [];
 
@@ -166,13 +187,14 @@ class Reporter {
     };
 
     const buffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
-    const outputPath = path.join(this.outputDir, filename);
     fs.writeFileSync(outputPath, buffer);
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
   private async _writeCsvFile(data: any[], filename: string, columns: string[]): Promise<void> {
     const outputPath = path.join(this.outputDir, filename);
+    await this._ensureDirectoryExistence(outputPath);
+
     return new Promise((resolve, reject) => {
       stringify(data, { header: true, columns: columns }, (err, output) => {
         if (err) {
@@ -238,10 +260,91 @@ class Reporter {
     }
   }
 
-  // Markdownレポート生成のスケルトン
-  generateMarkdownReport(data: any, filename: string): void {
-    // TODO: Markdown形式でレポートを生成するロジックを実装
-    console.log(`Markdownレポートを ${filename} に生成します (未実装)。`);
+  async generateMarkdownReport(allMetrics: AllMetrics, filename: string): Promise<void> {
+    const outputPath = path.join(this.outputDir, filename);
+    await this._ensureDirectoryExistence(outputPath);
+
+    let markdownContent = `# 生産性レポート\n\n`;
+
+    markdownContent += `## 全体メトリクス\n\n`;
+    markdownContent += `### Pull Request メトリクス\n\n`;
+    markdownContent += `| メトリクス | 値 |\n`;
+    markdownContent += `|---|---|\n`;
+    for (const [key, value] of Object.entries(allMetrics.prMetrics)) {
+      markdownContent += `| ${key} | ${value} |\n`;
+    }
+    markdownContent += `\n`;
+
+    markdownContent += `### Issue メトリクス\n\n`;
+    markdownContent += `| メトリクス | 値 |\n`;
+    markdownContent += `|---|---|\n`;
+    for (const [key, value] of Object.entries(allMetrics.issueMetrics)) {
+      markdownContent += `| ${key} | ${value} |\n`;
+    }
+    markdownContent += `\n`;
+
+    markdownContent += `## コントリビューター別メトリクス\n\n`;
+    if (allMetrics.prContributors.size > 0) {
+      markdownContent += `### Pull Request コントリビューター\n\n`;
+      const firstContributorMetrics = allMetrics.prContributors.values().next().value;
+      if (firstContributorMetrics) {
+        const columns = ['コントリビューター', ...Object.keys(firstContributorMetrics)];
+        markdownContent += `| ${columns.join(' | ')} |\n`;
+        markdownContent += `|${columns.map(() => '---').join('|')}|\n`;
+        allMetrics.prContributors.forEach((metrics, contributor) => {
+          const values = Object.values(metrics);
+          markdownContent += `| ${contributor} | ${values.join(' | ')} |\n`;
+        });
+        markdownContent += `\n`;
+      }
+    }
+
+    if (allMetrics.issueContributors.size > 0) {
+      markdownContent += `### Issue コントリビューター\n\n`;
+      const firstContributorMetrics = allMetrics.issueContributors.values().next().value;
+      if (firstContributorMetrics) {
+        const columns = ['コントリビューター', ...Object.keys(firstContributorMetrics)];
+        markdownContent += `| ${columns.join(' | ')} |\n`;
+        markdownContent += `|${columns.map(() => '---').join('|')}|\n`;
+        allMetrics.issueContributors.forEach((metrics, contributor) => {
+          const values = Object.values(metrics);
+          markdownContent += `| ${contributor} | ${values.join(' | ')} |\n`;
+        });
+        markdownContent += `\n`;
+      }
+    }
+
+    markdownContent += `## 時系列メトリクス\n\n`;
+    // PR Time Series
+    const prTimeSeriesData = allMetrics.prTimeSeries.daily; // デフォルトで日次を表示
+    if (prTimeSeriesData.mergedPullRequests.labels.length > 0) {
+      markdownContent += `### Pull Request 時系列 (日次)\n\n`;
+      markdownContent += `| 日付 | マージされたPR数 | 平均マージ時間 (分) |\n`;
+      markdownContent += `|---|---|---|\n`;
+      prTimeSeriesData.mergedPullRequests.labels.forEach((label: string, index: number) => {
+        const mergedPRs = prTimeSeriesData.mergedPullRequests.values[index];
+        const avgTimeToMerge = prTimeSeriesData.avgTimeToMerge.values[index];
+        markdownContent += `| ${label} | ${mergedPRs} | ${avgTimeToMerge} |\n`;
+      });
+      markdownContent += `\n`;
+    }
+
+    // Issue Time Series
+    const issueTimeSeriesData = allMetrics.issueTimeSeries.daily; // デフォルトで日次を表示
+    if (issueTimeSeriesData.closedIssues.labels.length > 0) {
+      markdownContent += `### Issue 時系列 (日次)\n\n`;
+      markdownContent += `| 日付 | クローズされたIssue数 | 平均解決時間 (分) |\n`;
+      markdownContent += `|---|---|---|\n`;
+      issueTimeSeriesData.closedIssues.labels.forEach((label: string, index: number) => {
+        const closedIssues = issueTimeSeriesData.closedIssues.values[index];
+        const avgIssueResolutionTime = issueTimeSeriesData.avgIssueResolutionTime.values[index];
+        markdownContent += `| ${label} | ${closedIssues} | ${avgIssueResolutionTime} |\n`;
+      });
+      markdownContent += `\n`;
+    }
+
+    fs.writeFileSync(outputPath, markdownContent);
+    console.log(`Markdownレポートを ${outputPath} に保存しました。`);
   }
 }
 

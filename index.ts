@@ -19,10 +19,10 @@ program
   .name('productivity-tool')
   .description('GitHubリポジリの生産性を測定するCLIツール')
   .version('0.1.0')
-  .option('--repo <owner/repo>', '分析対象のリポジトリ (例: octocat/Spoon-Knife)')
+  .option('--repo <owner/repo>', '分析対象のリポジリ (例: octocat/Spoon-Knife)')
   .option('--start-date <date>', '分析開始日 (YYYY-MM-DD)')
   .option('--end-date <date>', '分析終了日 (YYYY-MM-DD)')
-  .option('--all-repos', '組織内の全てのリポジトリを分析')
+  .option('--all-repos <org>', '組織内の全てのリポジリを分析 (組織名を指定)')
   .option('--summary', 'サマリーレポートを表示')
   .option('--output-format <format>', 'レポート出力形式 (csv, markdown)', 'markdown')
   .option('--analyze-ai', '生成AIによる分析と対策案の提示')
@@ -32,6 +32,173 @@ program
 program.parse(process.argv);
 
 const options = program.opts();
+
+async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate: Date, outputDir: string, timeUnit: string, outputFormat: string, analyzeAi: boolean, githubClient: GitHubClient, analyzer: Analyzer, reporter: Reporter, aiAnalyzer: AIAnalyzer | null) {
+  console.log(`リポジリ ${owner}/${repo} を分析中...`);
+  console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
+
+  console.log('Pull Requestデータを取得中...');
+  const pulls = await githubClient.getPullRequests(owner, repo, startDate, endDate);
+  console.log(`取得したPull Request数: ${pulls.length}`);
+
+  console.log('Issueデータを取得中...');
+  const issues = await githubClient.getIssues(owner, repo, startDate, endDate);
+  console.log(`取得したIssue数: ${issues.length}`);
+
+  console.log('メトリクスを計算中...');
+  const { overall: prMetrics, contributors: prContributors, timeSeries: prTimeSeries } = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
+  const { overall: issueMetrics, contributors: issueContributors, timeSeries: issueTimeSeries } = analyzer.calculateIssueMetrics(issues);
+
+  const allMetrics: AllMetrics = { prMetrics, issueMetrics, prContributors, issueContributors, prTimeSeries, issueTimeSeries };
+
+  console.log('\n--- 全体分析結果 ---');
+  console.log('Pull Requestメトリクス:', allMetrics.prMetrics);
+  console.log('Issueメトリクス:', allMetrics.issueMetrics);
+
+  console.log('\n--- コントリビューター別Pull Requestメトリクス ---');
+  allMetrics.prContributors.forEach((metrics, contributor) => {
+    console.log(`  ${contributor}:`, metrics);
+  });
+
+  console.log('\n--- コントリビューター別Issueメトリクス ---');
+  allMetrics.issueContributors.forEach((metrics, contributor) => {
+    console.log(`  ${contributor}:`, metrics);
+  });
+
+  // グラフ生成の例
+  if (allMetrics.prMetrics.mergedPullRequests > 0) {
+    await reporter.generateChart(
+      { labels: ['マージされたPR数'], values: [allMetrics.prMetrics.mergedPullRequests] },
+      path.join(owner, repo, 'merged_pr_count.png'),
+      'マージされたPull Request数',
+      '数'
+    );
+    await reporter.generateChart(
+      { labels: ['平均PRサイクルタイム'], values: [allMetrics.prMetrics.avgTimeToMerge] },
+      path.join(owner, repo, 'avg_pr_cycle_time.png'),
+      '平均Pull Requestサイクルタイム (分)',
+      '時間 (分)'
+    );
+  }
+
+  // 時系列グラフ生成
+  let prMergedTimeSeriesData: any;
+  let prAvgTimeToMergeTimeSeriesData: any;
+  let issueClosedTimeSeriesData: any;
+  let issueAvgResolutionTimeSeriesData: any;
+
+  switch (timeUnit) {
+    case 'daily':
+      prMergedTimeSeriesData = allMetrics.prTimeSeries.daily.mergedPullRequests;
+      prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.daily.avgTimeToMerge;
+      issueClosedTimeSeriesData = allMetrics.issueTimeSeries.daily.closedIssues;
+      issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.daily.avgIssueResolutionTime;
+      break;
+    case 'weekly':
+      prMergedTimeSeriesData = allMetrics.prTimeSeries.weekly.mergedPullRequests;
+      prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.weekly.avgTimeToMerge;
+      issueClosedTimeSeriesData = allMetrics.issueTimeSeries.weekly.closedIssues;
+      issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.weekly.avgIssueResolutionTime;
+      break;
+    case 'monthly':
+      prMergedTimeSeriesData = allMetrics.prTimeSeries.monthly.mergedPullRequests;
+      prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.monthly.avgTimeToMerge;
+      issueClosedTimeSeriesData = allMetrics.issueTimeSeries.monthly.closedIssues;
+      issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.monthly.avgIssueResolutionTime;
+      break;
+    default:
+      console.warn('警告: 無効な時間単位が指定されました。日次データを使用します。');
+      prMergedTimeSeriesData = allMetrics.prTimeSeries.daily.mergedPullRequests;
+      prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.daily.avgTimeToMerge;
+      issueClosedTimeSeriesData = allMetrics.issueTimeSeries.daily.closedIssues;
+      issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.daily.avgIssueResolutionTime;
+  }
+
+  if (prMergedTimeSeriesData.labels.length > 0) {
+    await reporter.generateLineChart(
+      prMergedTimeSeriesData,
+      path.join(owner, repo, `merged_pr_count_${timeUnit}_time_series.png`),
+      `${timeUnit}ごとのマージされたPull Request数`,
+      '数'
+    );
+    await reporter.generateLineChart(
+      prAvgTimeToMergeTimeSeriesData,
+      path.join(owner, repo, `avg_pr_cycle_time_${timeUnit}_time_series.png`),
+      `${timeUnit}ごとの平均Pull Requestサイクルタイム (分)`,
+      '時間 (分)'
+    );
+  }
+  if (issueClosedTimeSeriesData.labels.length > 0) {
+    await reporter.generateLineChart(
+      issueClosedTimeSeriesData,
+      path.join(owner, repo, `closed_issues_count_${timeUnit}_time_series.png`),
+      `${timeUnit}ごとのクローズされたIssue数`,
+      '数'
+    );
+    await reporter.generateLineChart(
+      issueAvgResolutionTimeSeriesData,
+      path.join(owner, repo, `avg_issue_resolution_time_${timeUnit}_time_series.png`),
+      `${timeUnit}ごとの平均Issue解決時間 (分)`,
+      '時間 (分)'
+    );
+  }
+
+  // コントリビューター別グラフ生成
+  if (allMetrics.prContributors.size > 0) {
+    await reporter.generateContributorBarChart(
+      allMetrics.prContributors,
+      'mergedPullRequests',
+      path.join(owner, repo, 'contributor_merged_pr_count.png'),
+      'コントリビューター別マージされたPull Request数',
+      '数'
+    );
+    await reporter.generateContributorBarChart(
+      allMetrics.prContributors,
+      'totalLinesChanged',
+      path.join(owner, repo, 'contributor_lines_changed.png'),
+      'コントリビューター別変更行数',
+      '行数'
+    );
+    await reporter.generateContributorBarChart(
+      allMetrics.prContributors,
+      'avgTimeToMerge',
+      path.join(owner, repo, 'contributor_avg_time_to_merge.png'),
+      'コントリビューター別平均PRサイクルタイム (分)',
+      '時間 (分)'
+    );
+  }
+  if (allMetrics.issueContributors.size > 0) {
+    await reporter.generateContributorBarChart(
+      allMetrics.issueContributors,
+      'closedIssues',
+      path.join(owner, repo, 'contributor_closed_issues_count.png'),
+      'コントリビューター別クローズされたIssue数',
+      '数'
+    );
+    await reporter.generateContributorBarChart(
+      allMetrics.issueContributors,
+      'totalIssueResolutionTime',
+      path.join(owner, repo, 'contributor_avg_issue_resolution_time.png'),
+      'コントリビューター別平均Issue解決時間 (分)',
+      '時間 (分)'
+    );
+  }
+
+  if (outputFormat === 'csv') {
+    await reporter.generateOverallMetricsCsv(allMetrics.prMetrics, allMetrics.issueMetrics);
+    await reporter.generateContributorMetricsCsv(allMetrics.prContributors, allMetrics.issueContributors);
+    await reporter.generateTimeSeriesCsv(allMetrics.prTimeSeries, allMetrics.issueTimeSeries, timeUnit);
+  } else if (outputFormat === 'markdown') {
+    await reporter.generateMarkdownReport(allMetrics, path.join(owner, repo, 'report.md'));
+  }
+
+  if (analyzeAi && aiAnalyzer) {
+    console.log('生成AIによる分析と対策案を生成中...');
+    const aiAnalysisResult = await aiAnalyzer.analyzeMetrics(allMetrics);
+    console.log('\n--- AI分析結果と対策案 ---');
+    console.log(aiAnalysisResult);
+  }
+}
 
 async function main() {
   const githubToken = process.env.GITHUB_TOKEN;
@@ -44,15 +211,15 @@ async function main() {
   }
 
   // 出力ディレクトリの作成
-  const outputDir = path.resolve(process.cwd(), options.outputDir);
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-    console.log(`出力ディレクトリを作成しました: ${outputDir}`);
+  const baseOutputDir = path.resolve(process.cwd(), options.outputDir);
+  if (!fs.existsSync(baseOutputDir)) {
+    fs.mkdirSync(baseOutputDir, { recursive: true });
+    console.log(`出力ディレクトリを作成しました: ${baseOutputDir}`);
   }
 
   const githubClient = new GitHubClient(githubToken);
   const analyzer = new Analyzer(githubClient);
-  const reporter = new Reporter(outputDir);
+  const reporter = new Reporter(baseOutputDir);
   let aiAnalyzer: AIAnalyzer | null = null;
 
   if (options.analyzeAi) {
@@ -81,182 +248,35 @@ async function main() {
   if (options.repo) {
     const [owner, repo] = options.repo.split('/');
     if (!owner || !repo) {
-      console.error('エラー: リポジトリの指定が不正です。owner/repo 形式で指定してください。');
+      console.error('エラー: リポジリの指定が不正です。owner/repo 形式で指定してください。');
       process.exit(1);
     }
-    console.log(`リポジリ ${owner}/${repo} を分析中...`);
-
-    if (startDate && endDate) {
-      console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
-
-      console.log('Pull Requestデータを取得中...');
-      const pulls = await githubClient.getPullRequests(owner, repo, startDate, endDate);
-      console.log(`取得したPull Request数: ${pulls.length}`);
-
-      console.log('Issueデータを取得中...');
-      const issues = await githubClient.getIssues(owner, repo, startDate, endDate);
-      console.log(`取得したIssue数: ${issues.length}`);
-
-      console.log('メトリクスを計算中...');
-      const { overall: prMetrics, contributors: prContributors, timeSeries: prTimeSeries } = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
-      const { overall: issueMetrics, contributors: issueContributors, timeSeries: issueTimeSeries } = analyzer.calculateIssueMetrics(issues);
-
-      const allMetrics: AllMetrics = { prMetrics, issueMetrics, prContributors, issueContributors, prTimeSeries, issueTimeSeries };
-
-      console.log('\n--- 全体分析結果 ---');
-      console.log('Pull Requestメトリクス:', allMetrics.prMetrics);
-      console.log('Issueメトリクス:', allMetrics.issueMetrics);
-
-      console.log('\n--- コントリビューター別Pull Requestメトリクス ---');
-      allMetrics.prContributors.forEach((metrics, contributor) => {
-        console.log(`  ${contributor}:`, metrics);
-      });
-
-      console.log('\n--- コントリビューター別Issueメトリクス ---');
-      allMetrics.issueContributors.forEach((metrics, contributor) => {
-        console.log(`  ${contributor}:`, metrics);
-      });
-
-      // グラフ生成の例
-      if (allMetrics.prMetrics.mergedPullRequests > 0) {
-        await reporter.generateChart(
-          { labels: ['マージされたPR数'], values: [allMetrics.prMetrics.mergedPullRequests] },
-          'merged_pr_count.png',
-          'マージされたPull Request数',
-          '数'
-        );
-        await reporter.generateChart(
-          { labels: ['平均PRサイクルタイム'], values: [allMetrics.prMetrics.avgTimeToMerge] },
-          'avg_pr_cycle_time.png',
-          '平均Pull Requestサイクルタイム (分)',
-          '時間 (分)'
-        );
-      }
-
-      // 時系列グラフ生成
-      const timeUnit = options.timeUnit;
-      let prMergedTimeSeriesData: any;
-      let prAvgTimeToMergeTimeSeriesData: any;
-      let issueClosedTimeSeriesData: any;
-      let issueAvgResolutionTimeSeriesData: any;
-
-      switch (timeUnit) {
-        case 'daily':
-          prMergedTimeSeriesData = allMetrics.prTimeSeries.daily.mergedPullRequests;
-          prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.daily.avgTimeToMerge;
-          issueClosedTimeSeriesData = allMetrics.issueTimeSeries.daily.closedIssues;
-          issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.daily.avgIssueResolutionTime;
-          break;
-        case 'weekly':
-          prMergedTimeSeriesData = allMetrics.prTimeSeries.weekly.mergedPullRequests;
-          prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.weekly.avgTimeToMerge;
-          issueClosedTimeSeriesData = allMetrics.issueTimeSeries.weekly.closedIssues;
-          issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.weekly.avgIssueResolutionTime;
-          break;
-        case 'monthly':
-          prMergedTimeSeriesData = allMetrics.prTimeSeries.monthly.mergedPullRequests;
-          prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.monthly.avgTimeToMerge;
-          issueClosedTimeSeriesData = allMetrics.issueTimeSeries.monthly.closedIssues;
-          issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.monthly.avgIssueResolutionTime;
-          break;
-        default:
-          console.warn('警告: 無効な時間単位が指定されました。日次データを使用します。');
-          prMergedTimeSeriesData = allMetrics.prTimeSeries.daily.mergedPullRequests;
-          prAvgTimeToMergeTimeSeriesData = allMetrics.prTimeSeries.daily.avgTimeToMerge;
-          issueClosedTimeSeriesData = allMetrics.issueTimeSeries.daily.closedIssues;
-          issueAvgResolutionTimeSeriesData = allMetrics.issueTimeSeries.daily.avgIssueResolutionTime;
-      }
-
-      if (prMergedTimeSeriesData.labels.length > 0) {
-        await reporter.generateLineChart(
-          prMergedTimeSeriesData,
-          `merged_pr_count_${timeUnit}_time_series.png`,
-          `${timeUnit}ごとのマージされたPull Request数`,
-          '数'
-        );
-        await reporter.generateLineChart(
-          prAvgTimeToMergeTimeSeriesData,
-          `avg_pr_cycle_time_${timeUnit}_time_series.png`,
-          `${timeUnit}ごとの平均Pull Requestサイクルタイム (分)`,
-          '時間 (分)'
-        );
-      }
-      if (issueClosedTimeSeriesData.labels.length > 0) {
-        await reporter.generateLineChart(
-          issueClosedTimeSeriesData,
-          `closed_issues_count_${timeUnit}_time_series.png`,
-          `${timeUnit}ごとのクローズされたIssue数`,
-          '数'
-        );
-        await reporter.generateLineChart(
-          issueAvgResolutionTimeSeriesData,
-          `avg_issue_resolution_time_${timeUnit}_time_series.png`,
-          `${timeUnit}ごとの平均Issue解決時間 (分)`,
-          '時間 (分)'
-        );
-      }
-
-      // コントリビューター別グラフ生成
-      if (allMetrics.prContributors.size > 0) {
-        await reporter.generateContributorBarChart(
-          allMetrics.prContributors,
-          'mergedPullRequests',
-          'contributor_merged_pr_count.png',
-          'コントリビューター別マージされたPull Request数',
-          '数'
-        );
-        await reporter.generateContributorBarChart(
-          allMetrics.prContributors,
-          'totalLinesChanged',
-          'contributor_lines_changed.png',
-          'コントリビューター別変更行数',
-          '行数'
-        );
-        await reporter.generateContributorBarChart(
-          allMetrics.prContributors,
-          'avgTimeToMerge',
-          'contributor_avg_time_to_merge.png',
-          'コントリビューター別平均PRサイクルタイム (分)',
-          '時間 (分)'
-        );
-      }
-      if (allMetrics.issueContributors.size > 0) {
-        await reporter.generateContributorBarChart(
-          allMetrics.issueContributors,
-          'closedIssues',
-          'contributor_closed_issues_count.png',
-          'コントリビューター別クローズされたIssue数',
-          '数'
-        );
-        await reporter.generateContributorBarChart(
-          allMetrics.issueContributors,
-          'totalIssueResolutionTime',
-          'contributor_avg_issue_resolution_time.png',
-          'コントリビューター別平均Issue解決時間 (分)',
-          '時間 (分)'
-        );
-      }
-
-      if (options.outputFormat === 'csv') {
-        await reporter.generateOverallMetricsCsv(allMetrics.prMetrics, allMetrics.issueMetrics);
-        await reporter.generateContributorMetricsCsv(allMetrics.prContributors, allMetrics.issueContributors);
-        await reporter.generateTimeSeriesCsv(allMetrics.prTimeSeries, allMetrics.issueTimeSeries, timeUnit);
-      }
-
-      if (options.analyzeAi && aiAnalyzer) {
-        console.log('生成AIによる分析と対策案を生成中...');
-        const aiAnalysisResult = await aiAnalyzer.analyzeMetrics(allMetrics);
-        console.log('\n--- AI分析結果と対策案 ---');
-        console.log(aiAnalysisResult);
-      }
-
-    } else {
-      console.warn('警告: 分析期間が指定されていないため、データ収集とメトリクス計算はスキップされます。');
-    }
+    await analyzeRepo(owner, repo, startDate!, endDate!, baseOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, githubClient, analyzer, reporter, aiAnalyzer);
 
   } else if (options.allRepos) {
-    console.log('全ての組織リポジリを分析中... (未実装)');
-    // 全リポジリのデータ収集、分析、レポート生成のロジック
+    const org = options.allRepos;
+    if (!org) {
+      console.error('エラー: --all-repos オプションには組織名を指定してください。');
+      process.exit(1);
+    }
+    console.log(`組織 ${org} の全てのリポジリを分析中...`);
+    const repos = await githubClient.getOrganizationRepos(org);
+    console.log(`取得したリポジリ数: ${repos.length}`);
+
+    for (const repoInfo of repos) {
+      const repoOwner = repoInfo.owner.login;
+      const repoName = repoInfo.name;
+      const repoOutputDir = path.join(baseOutputDir, repoOwner, repoName);
+      if (!fs.existsSync(repoOutputDir)) {
+        fs.mkdirSync(repoOutputDir, { recursive: true });
+      }
+      const repoReporter = new Reporter(repoOutputDir);
+      await analyzeRepo(repoOwner, repoName, startDate!, endDate!, repoOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, githubClient, analyzer, repoReporter, aiAnalyzer);
+    }
+
+  } else {
+    console.error('エラー: 分析対象のリポジリ (--repo) または組織 (--all-repos) を指定してください。');
+    process.exit(1);
   }
 
   console.log('処理が完了しました。');

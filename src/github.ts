@@ -22,6 +22,35 @@ class GitHubClient {
     return data;
   }
 
+  async getOrganizationRepos(org: string): Promise<any[]> {
+    const cacheKey = `repos-${org}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const repos: any[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      console.log(`  組織 ${org} のリポジトリ: ページ ${page} を取得中...`);
+      while (hasMore) {
+        const response = await this.octokit.repos.listForOrg({
+          org,
+          type: 'all',
+          per_page: 100,
+          page,
+        });
+
+        repos.push(...response.data);
+
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          console.log(`  組織 ${org} のリポジトリ: ページ ${page} を取得中... (現在の合計: ${repos.length})`);
+        }
+      }
+      return repos;
+    });
+  }
+
   async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<PullRequest[]> {
     const cacheKey = `pulls-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
     return this.fetchDataAndCache(cacheKey, async () => {

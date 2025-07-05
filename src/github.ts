@@ -14,6 +14,7 @@ class GitHubClient {
     let page = 1;
     let hasMore = true;
 
+    console.log(`  Pull Requests: ページ ${page} を取得中...`);
     while (hasMore) {
       const response = await this.octokit.pulls.list({
         owner,
@@ -34,6 +35,7 @@ class GitHubClient {
         hasMore = false;
       } else {
         page++;
+        console.log(`  Pull Requests: ページ ${page} を取得中... (現在の合計: ${pulls.length})`);
       }
     }
     return pulls;
@@ -44,6 +46,7 @@ class GitHubClient {
     let page = 1;
     let hasMore = true;
 
+    console.log(`  Issues: ページ ${page} を取得中...`);
     while (hasMore) {
       const response = await this.octokit.issues.listForRepo({
         owner,
@@ -65,6 +68,7 @@ class GitHubClient {
         hasMore = false;
       } else {
         page++;
+        console.log(`  Issues: ページ ${page} を取得中... (現在の合計: ${issues.length})`);
       }
     }
     return issues;
@@ -75,6 +79,7 @@ class GitHubClient {
     let page = 1;
     let hasMore = true;
 
+    console.log(`  Commits: ページ ${page} を取得中...`);
     while (hasMore) {
       const response = await this.octokit.repos.listCommits({
         owner,
@@ -91,6 +96,7 @@ class GitHubClient {
         hasMore = false;
       } else {
         page++;
+        console.log(`  Commits: ページ ${page} を取得中... (現在の合計: ${commits.length})`);
       }
     }
     return commits;
@@ -101,6 +107,7 @@ class GitHubClient {
     let page = 1;
     let hasMore = true;
 
+    // console.log(`    PR #${pull_number} のレビューコメント: ページ ${page} を取得中...`); // コメントが多すぎる可能性があるのでコメントアウト
     while (hasMore) {
       const response = await this.octokit.pulls.listReviewComments({
         owner,
@@ -116,6 +123,7 @@ class GitHubClient {
         hasMore = false;
       } else {
         page++;
+        // console.log(`    PR #${pull_number} のレビューコメント: ページ ${page} を取得中... (現在の合計: ${comments.length})`);
       }
     }
     return comments;

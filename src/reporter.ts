@@ -1,7 +1,11 @@
 import { ChartJSNodeCanvas } from 'chartjs-node-canvas';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ChartConfiguration, ChartTypeRegistry } from 'chart.js';
+import { ChartConfiguration, Chart, registerables } from 'chart.js';
+import 'chartjs-adapter-date-fns'; // date-fnsアダプターをインポート
+
+// Chart.jsのすべてのコンポーネントとアダプターを登録
+Chart.register(...registerables);
 
 interface ChartData {
   labels: string[];
@@ -12,8 +16,9 @@ class Reporter {
   private width: number;
   private height: number;
   private chartJSNodeCanvas: ChartJSNodeCanvas;
+  private outputDir: string;
 
-  constructor() {
+  constructor(outputDir: string = '.') {
     this.width = 800;
     this.height = 600;
     this.chartJSNodeCanvas = new ChartJSNodeCanvas({
@@ -21,6 +26,7 @@ class Reporter {
       height: this.height,
       backgroundColour: 'white',
     });
+    this.outputDir = outputDir;
   }
 
   async generateChart(data: ChartData, filename: string, title: string, yAxisLabel: string): Promise<void> {
@@ -56,7 +62,60 @@ class Reporter {
     };
 
     const buffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
-    const outputPath = path.join(process.cwd(), filename);
+    const outputPath = path.join(this.outputDir, filename);
+    fs.writeFileSync(outputPath, buffer);
+    console.log(`グラフを ${outputPath} に保存しました。`);
+  }
+
+  async generateLineChart(data: ChartData, filename: string, title: string, yAxisLabel: string): Promise<void> {
+    const configuration: ChartConfiguration<'line'> = {
+      type: 'line',
+      data: {
+        labels: data.labels,
+        datasets: [{
+          label: title,
+          data: data.values,
+          borderColor: 'rgba(75, 192, 192, 1)',
+          backgroundColor: 'rgba(75, 192, 192, 0.2)',
+          fill: false,
+          tension: 0.1,
+        }],
+      },
+      options: {
+        scales: {
+          x: {
+            type: 'time',
+            time: {
+              unit: 'week',
+              tooltipFormat: 'yyyy-MM-dd',
+              displayFormats: {
+                week: 'yyyy-MM-dd'
+              }
+            },
+            title: {
+              display: true,
+              text: '日付'
+            }
+          },
+          y: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: yAxisLabel,
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: title,
+          },
+        },
+      },
+    };
+
+    const buffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
+    const outputPath = path.join(this.outputDir, filename);
     fs.writeFileSync(outputPath, buffer);
     console.log(`グラフを ${outputPath} に保存しました。`);
   }

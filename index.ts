@@ -21,13 +21,14 @@ program
   .version('0.1.0');
 
 program
-  .option('--repo <owner/repo>', '分析対象のリポジリ (例: octocat/Spoon-Knife)')
+  .option('--repo <owner/repo>', '分析対象のリポジトリ (例: octocat/Spoon-Knife)')
   .option('--start-date <date>', '分析開始日 (YYYY-MM-DD)')
   .option('--end-date <date>', '分析終了日 (YYYY-MM-DD)')
-  .option('--all-repos', '組織内の全てのリポジリを分析')
+  .option('--all-repos', '組織内の全てのリポジトリを分析')
   .option('--summary', 'サマリーレポートを表示')
   .option('--output-format <format>', 'レポート出力形式 (csv, markdown)', 'markdown')
-  .option('--analyze-ai', '生成AIによる分析と対策案の提示');
+  .option('--analyze-ai', '生成AIによる分析と対策案の提示')
+  .option('--output-dir <path>', '出力ファイルを保存するディレクトリ', './reports');
 
 program.parse(process.argv);
 
@@ -43,9 +44,16 @@ async function main() {
     process.exit(1);
   }
 
+  // 出力ディレクトリの作成
+  const outputDir = path.resolve(process.cwd(), options.outputDir);
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+    console.log(`出力ディレクトリを作成しました: ${outputDir}`);
+  }
+
   const githubClient = new GitHubClient(githubToken);
   const analyzer = new Analyzer(githubClient);
-  const reporter = new Reporter();
+  const reporter = new Reporter(outputDir);
   let aiAnalyzer: AIAnalyzer | null = null;
 
   if (options.analyzeAi) {
@@ -74,10 +82,10 @@ async function main() {
   if (options.repo) {
     const [owner, repo] = options.repo.split('/');
     if (!owner || !repo) {
-      console.error('エラー: リポジリの指定が不正です。owner/repo 形式で指定してください。');
+      console.error('エラー: リポジトリの指定が不正です。owner/repo 形式で指定してください。');
       process.exit(1);
     }
-    console.log(`リポジリ ${owner}/${repo} を分析中...`);
+    console.log(`リポジトリ ${owner}/${repo} を分析中...`);
 
     if (startDate && endDate) {
       console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
@@ -91,10 +99,10 @@ async function main() {
       console.log(`取得したIssue数: ${issues.length}`);
 
       console.log('メトリクスを計算中...');
-      const { overall: prMetrics, contributors: prContributors } = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
-      const { overall: issueMetrics, contributors: issueContributors } = analyzer.calculateIssueMetrics(issues);
+      const { overall: prMetrics, contributors: prContributors, timeSeries: prTimeSeries } = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
+      const { overall: issueMetrics, contributors: issueContributors, timeSeries: issueTimeSeries } = analyzer.calculateIssueMetrics(issues);
 
-      const allMetrics = { prMetrics, issueMetrics, prContributors, issueContributors };
+      const allMetrics = { prMetrics, issueMetrics, prContributors, issueContributors, prTimeSeries, issueTimeSeries };
 
       console.log('\n--- 全体分析結果 ---');
       console.log('Pull Requestメトリクス:', prMetrics);
@@ -126,6 +134,50 @@ async function main() {
         );
       }
 
+      // 時系列グラフ生成の例 (週次)
+      if (prTimeSeries.weekly.mergedPullRequests.labels.length > 0) {
+        console.log('週ごとのマージされたPull Request数 (ラベル):', prTimeSeries.weekly.mergedPullRequests.labels);
+        console.log('週ごとのマージされたPull Request数 (値):', prTimeSeries.weekly.mergedPullRequests.values);
+        await reporter.generateLineChart(
+          prTimeSeries.weekly.mergedPullRequests,
+          'merged_pr_count_weekly_time_series.png',
+          '週ごとのマージされたPull Request数',
+          '数'
+        );
+        await reporter.generateLineChart(
+          prTimeSeries.weekly.avgTimeToMerge,
+          'avg_pr_cycle_time_weekly_time_series.png',
+          '週ごとの平均Pull Requestサイクルタイム (分)',
+          '時間 (分)'
+        );
+      }
+      if (issueTimeSeries.weekly.closedIssues.labels.length > 0) {
+        console.log('週ごとのクローズされたIssue数 (ラベル):', issueTimeSeries.weekly.closedIssues.labels);
+        console.log('週ごとのクローズされたIssue数 (値):', issueTimeSeries.weekly.closedIssues.values);
+        await reporter.generateLineChart(
+          issueTimeSeries.weekly.closedIssues,
+          'closed_issues_count_weekly_time_series.png',
+          '週ごとのクローズされたIssue数',
+          '数'
+        );
+        await reporter.generateLineChart(
+          issueTimeSeries.weekly.avgIssueResolutionTime,
+          'avg_issue_resolution_time_weekly_time_series.png',
+          '週ごとの平均Issue解決時間 (分)',
+          '時間 (分)'
+        );
+      }
+
+      // 時系列グラフ生成の例 (月次 - 必要であれば)
+      // if (prTimeSeries.monthly.mergedPullRequests.labels.length > 0) {
+      //   await reporter.generateLineChart(
+      //     prTimeSeries.monthly.mergedPullRequests,
+      //     'merged_pr_count_monthly_time_series.png',
+      //     '月ごとのマージされたPull Request数',
+      //     '数'
+      //   );
+      // }
+
       if (options.analyzeAi && aiAnalyzer) {
         console.log('生成AIによる分析と対策案を生成中...');
         const aiAnalysisResult = await aiAnalyzer.analyzeMetrics(allMetrics);
@@ -138,8 +190,8 @@ async function main() {
     }
 
   } else if (options.allRepos) {
-    console.log('全ての組織リポジリを分析中... (未実装)');
-    // 全リポジリのデータ収集、分析、レポート生成のロジック
+    console.log('全ての組織リポジトリを分析中... (未実装)');
+    // 全リポジトリのデータ収集、分析、レポート生成のロジック
   }
 
   console.log('処理が完了しました。');

@@ -1,4 +1,5 @@
-import { differenceInMinutes, parseISO } from 'date-fns';
+import { differenceInMinutes, parseISO, format, startOfMonth, startOfWeek } from 'date-fns';
+
 import GitHubClient from './github';
 
 interface PullRequestMetrics {
@@ -29,6 +30,11 @@ interface ContributorIssueMetrics {
   totalIssueResolutionTime: number;
 }
 
+interface TimeSeriesData {
+  labels: string[]; // YYYY-MM or YYYY-MM-DD (for week start)
+  values: number[];
+}
+
 class Analyzer {
   private githubClient: GitHubClient;
 
@@ -36,7 +42,7 @@ class Analyzer {
     this.githubClient = githubClient;
   }
 
-  async calculatePullRequestMetrics(owner: string, repo: string, pulls: any[]): Promise<{ overall: PullRequestMetrics; contributors: Map<string, ContributorPullRequestMetrics> }> {
+  async calculatePullRequestMetrics(owner: string, repo: string, pulls: any[]): Promise<{ overall: PullRequestMetrics; contributors: Map<string, ContributorPullRequestMetrics>; timeSeries: { monthly: { mergedPullRequests: TimeSeriesData; avgTimeToMerge: TimeSeriesData }; weekly: { mergedPullRequests: TimeSeriesData; avgTimeToMerge: TimeSeriesData } } }> {
     let totalTimeToFirstReview = 0;
     let totalTimeToMerge = 0;
     let totalLinesChanged = 0;
@@ -44,9 +50,33 @@ class Analyzer {
     let totalReviewIterations = 0;
 
     const contributorMetrics = new Map<string, ContributorPullRequestMetrics>();
+    const mergedPullRequestsMonthlyTimeSeries: { [key: string]: number } = {};
+    const timeToMergeMonthlyTimeSeries: { [key: string]: { total: number; count: number } } = {};
+    const mergedPullRequestsWeeklyTimeSeries: { [key: string]: number } = {};
+    const timeToMergeWeeklyTimeSeries: { [key: string]: { total: number; count: number } } = {};
 
-    for (const pull of pulls) {
+    const totalPulls = pulls.length;
+    console.log(`  Pull Requestメトリクスを計算中... (合計 ${totalPulls} 件)`);
+
+    for (let i = 0; i < totalPulls; i++) {
+      const pull = pulls[i];
+      if ((i + 1) % 10 === 0 || (i + 1) === totalPulls) {
+        console.log(`    ${i + 1}/${totalPulls} 件のPull Requestを処理しました。`);
+      }
+
       const authorLogin = pull.user?.login || 'unknown';
+      const mergedAt = pull.merged_at ? parseISO(pull.merged_at) : null;
+
+      let monthKey = '';
+      let weekKey = '';
+
+      if (mergedAt) {
+        monthKey = format(startOfMonth(mergedAt), 'yyyy-MM');
+        mergedPullRequestsMonthlyTimeSeries[monthKey] = (mergedPullRequestsMonthlyTimeSeries[monthKey] || 0) + 1;
+
+        weekKey = format(startOfWeek(mergedAt, { weekStartsOn: 1 }), 'yyyy-MM-dd'); // Monday start
+        mergedPullRequestsWeeklyTimeSeries[weekKey] = (mergedPullRequestsWeeklyTimeSeries[weekKey] || 0) + 1;
+      }
 
       if (!contributorMetrics.has(authorLogin)) {
         contributorMetrics.set(authorLogin, {
@@ -67,6 +97,21 @@ class Analyzer {
         const timeToMerge = differenceInMinutes(parseISO(pull.merged_at), parseISO(pull.created_at));
         totalTimeToMerge += timeToMerge;
         currentContributorMetrics.totalTimeToMerge += timeToMerge;
+
+        if (monthKey) {
+          if (!timeToMergeMonthlyTimeSeries[monthKey]) {
+            timeToMergeMonthlyTimeSeries[monthKey] = { total: 0, count: 0 };
+          }
+          timeToMergeMonthlyTimeSeries[monthKey].total += timeToMerge;
+          timeToMergeMonthlyTimeSeries[monthKey].count++;
+        }
+        if (weekKey) {
+          if (!timeToMergeWeeklyTimeSeries[weekKey]) {
+            timeToMergeWeeklyTimeSeries[weekKey] = { total: 0, count: 0 };
+          }
+          timeToMergeWeeklyTimeSeries[weekKey].total += timeToMerge;
+          timeToMergeWeeklyTimeSeries[weekKey].count++;
+        }
       }
 
       // Lines of Code Changed
@@ -120,15 +165,61 @@ class Analyzer {
       }
     });
 
-    return { overall: overallMetrics, contributors: contributorMetrics };
+    // Prepare monthly time series data
+    const sortedMonthlyKeys = Object.keys(mergedPullRequestsMonthlyTimeSeries).sort();
+    const mergedPRMonthlyTimeSeriesData: TimeSeriesData = {
+      labels: sortedMonthlyKeys,
+      values: sortedMonthlyKeys.map(month => mergedPullRequestsMonthlyTimeSeries[month]),
+    };
+    const avgTimeToMergeMonthlyTimeSeriesData: TimeSeriesData = {
+      labels: sortedMonthlyKeys,
+      values: sortedMonthlyKeys.map(month => timeToMergeMonthlyTimeSeries[month] ? timeToMergeMonthlyTimeSeries[month].total / timeToMergeMonthlyTimeSeries[month].count : 0),
+    };
+
+    // Prepare weekly time series data
+    const sortedWeeklyKeys = Object.keys(mergedPullRequestsWeeklyTimeSeries).sort();
+    const mergedPRWeeklyTimeSeriesData: TimeSeriesData = {
+      labels: sortedWeeklyKeys,
+      values: sortedWeeklyKeys.map(week => mergedPullRequestsWeeklyTimeSeries[week]),
+    };
+    const avgTimeToMergeWeeklyTimeSeriesData: TimeSeriesData = {
+      labels: sortedWeeklyKeys,
+      values: sortedWeeklyKeys.map(week => timeToMergeWeeklyTimeSeries[week] ? timeToMergeWeeklyTimeSeries[week].total / timeToMergeWeeklyTimeSeries[week].count : 0),
+    };
+
+    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { monthly: { mergedPullRequests: mergedPRMonthlyTimeSeriesData, avgTimeToMerge: avgTimeToMergeMonthlyTimeSeriesData }, weekly: { mergedPullRequests: mergedPRWeeklyTimeSeriesData, avgTimeToMerge: avgTimeToMergeWeeklyTimeSeriesData } } };
   }
 
-  calculateIssueMetrics(issues: any[]): { overall: IssueMetrics; contributors: Map<string, ContributorIssueMetrics> } {
+  calculateIssueMetrics(issues: any[]): { overall: IssueMetrics; contributors: Map<string, ContributorIssueMetrics>; timeSeries: { monthly: { closedIssues: TimeSeriesData; avgIssueResolutionTime: TimeSeriesData }; weekly: { closedIssues: TimeSeriesData; avgIssueResolutionTime: TimeSeriesData } } } {
     let totalIssueResolutionTime = 0;
     const contributorMetrics = new Map<string, ContributorIssueMetrics>();
+    const closedIssuesMonthlyTimeSeries: { [key: string]: number } = {};
+    const issueResolutionMonthlyTimeSeries: { [key: string]: { total: number; count: number } } = {};
+    const closedIssuesWeeklyTimeSeries: { [key: string]: number } = {};
+    const issueResolutionWeeklyTimeSeries: { [key: string]: { total: number; count: number } } = {};
 
-    for (const issue of issues) {
+    const totalIssues = issues.length;
+    console.log(`  Issueメトリクスを計算中... (合計 ${totalIssues} 件)`);
+
+    for (let i = 0; i < totalIssues; i++) {
+      const issue = issues[i];
+      if ((i + 1) % 10 === 0 || (i + 1) === totalIssues) {
+        console.log(`    ${i + 1}/${totalIssues} 件のIssueを処理しました。`);
+      }
+
       const assigneeLogin = issue.assignee?.login || issue.user?.login || 'unknown';
+      const closedAt = issue.closed_at ? parseISO(issue.closed_at) : null;
+
+      let monthKey = '';
+      let weekKey = '';
+
+      if (closedAt) {
+        monthKey = format(startOfMonth(closedAt), 'yyyy-MM');
+        closedIssuesMonthlyTimeSeries[monthKey] = (closedIssuesMonthlyTimeSeries[monthKey] || 0) + 1;
+
+        weekKey = format(startOfWeek(closedAt, { weekStartsOn: 1 }), 'yyyy-MM-dd'); // Monday start
+        closedIssuesWeeklyTimeSeries[weekKey] = (closedIssuesWeeklyTimeSeries[weekKey] || 0) + 1;
+      }
 
       if (!contributorMetrics.has(assigneeLogin)) {
         contributorMetrics.set(assigneeLogin, {
@@ -144,6 +235,21 @@ class Analyzer {
         const resolutionTime = differenceInMinutes(parseISO(issue.closed_at), parseISO(issue.created_at));
         totalIssueResolutionTime += resolutionTime;
         currentContributorMetrics.totalIssueResolutionTime += resolutionTime;
+
+        if (monthKey) {
+          if (!issueResolutionMonthlyTimeSeries[monthKey]) {
+            issueResolutionMonthlyTimeSeries[monthKey] = { total: 0, count: 0 };
+          }
+          issueResolutionMonthlyTimeSeries[monthKey].total += resolutionTime;
+          issueResolutionMonthlyTimeSeries[monthKey].count++;
+        }
+        if (weekKey) {
+          if (!issueResolutionWeeklyTimeSeries[weekKey]) {
+            issueResolutionWeeklyTimeSeries[weekKey] = { total: 0, count: 0 };
+          }
+          issueResolutionWeeklyTimeSeries[weekKey].total += resolutionTime;
+          issueResolutionWeeklyTimeSeries[weekKey].count++;
+        }
       }
     }
 
@@ -161,7 +267,29 @@ class Analyzer {
       }
     });
 
-    return { overall: overallMetrics, contributors: contributorMetrics };
+    // Prepare monthly time series data
+    const sortedMonthlyKeys = Object.keys(closedIssuesMonthlyTimeSeries).sort();
+    const closedIssueMonthlyTimeSeriesData: TimeSeriesData = {
+      labels: sortedMonthlyKeys,
+      values: sortedMonthlyKeys.map(month => closedIssuesMonthlyTimeSeries[month]),
+    };
+    const avgIssueResolutionMonthlyTimeSeriesData: TimeSeriesData = {
+      labels: sortedMonthlyKeys,
+      values: sortedMonthlyKeys.map(month => issueResolutionMonthlyTimeSeries[month] ? issueResolutionMonthlyTimeSeries[month].total / issueResolutionMonthlyTimeSeries[month].count : 0),
+    };
+
+    // Prepare weekly time series data
+    const sortedWeeklyKeys = Object.keys(closedIssuesWeeklyTimeSeries).sort();
+    const closedIssueWeeklyTimeSeriesData: TimeSeriesData = {
+      labels: sortedWeeklyKeys,
+      values: sortedWeeklyKeys.map(week => closedIssuesWeeklyTimeSeries[week]),
+    };
+    const avgIssueResolutionWeeklyTimeSeriesData: TimeSeriesData = {
+      labels: sortedWeeklyKeys,
+      values: sortedWeeklyKeys.map(week => issueResolutionWeeklyTimeSeries[week] ? issueResolutionWeeklyTimeSeries[week].total / issueResolutionWeeklyTimeSeries[week].count : 0),
+    };
+
+    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { monthly: { closedIssues: closedIssueMonthlyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionMonthlyTimeSeriesData }, weekly: { closedIssues: closedIssueWeeklyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionWeeklyTimeSeriesData } } };
   }
 }
 

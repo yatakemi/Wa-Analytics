@@ -31,6 +31,10 @@ class Reporter {
     this.outputDir = outputDir;
   }
 
+  private _getMarkdownImagePath(filename: string): string {
+    return filename; // Markdownファイルと同じディレクトリにあるため、ファイル名のみを返す
+  }
+
   private async _ensureDirectoryExistence(filePath: string): Promise<void> {
     const dirname = path.dirname(filePath);
     try {
@@ -264,53 +268,129 @@ class Reporter {
     const outputPath = path.join(this.outputDir, filename);
     await this._ensureDirectoryExistence(outputPath);
 
+    // Overall Metrics Charts
+    await this.generateChart({ labels: ['Merged PRs'], values: [allMetrics.prMetrics.mergedPullRequests] }, 'overall_pr_merged_pull_requests.png', 'マージされたPR数', 'PR数');
+    await this.generateChart({ labels: ['Avg Time to Merge'], values: [allMetrics.prMetrics.avgTimeToMerge] }, 'overall_pr_avg_time_to_merge.png', '平均マージ時間', '時間 (分)');
+    await this.generateChart({ labels: ['Closed Issues'], values: [allMetrics.issueMetrics.closedIssues] }, 'overall_issue_closed_issues.png', 'クローズされたIssue数', 'Issue数');
+    await this.generateChart({ labels: ['Avg Issue Resolution Time'], values: [allMetrics.issueMetrics.avgIssueResolutionTime] }, 'overall_issue_avg_issue_resolution_time.png', '平均Issue解決時間', '時間 (分)');
+
+    // Contributor Metrics Charts
+    await this.generateContributorBarChart(allMetrics.prContributors, 'mergedPullRequests', 'contributor_pr_merged_pull_requests.png', 'コントリビューター別マージPR数', 'PR数');
+    await this.generateContributorBarChart(allMetrics.prContributors, 'totalTimeToMerge', 'contributor_pr_avg_time_to_merge.png', 'コントリビューター別平均マージ時間', '時間 (分)');
+    await this.generateContributorBarChart(allMetrics.issueContributors, 'closedIssues', 'contributor_issue_closed_issues.png', 'コントリビューター別クローズIssue数', 'Issue数');
+    await this.generateContributorBarChart(allMetrics.issueContributors, 'totalIssueResolutionTime', 'contributor_issue_avg_issue_resolution_time.png', 'コントリビューター別平均Issue解決時間', '時間 (分)');
+
+    // Time Series Charts
+    await this.generateLineChart(allMetrics.prTimeSeries.daily.mergedPullRequests, 'pr_time_series_merged_pull_requests_daily.png', '日次マージされたPR数', 'PR数');
+    await this.generateLineChart(allMetrics.prTimeSeries.daily.avgTimeToMerge, 'pr_time_series_avg_time_to_merge_daily.png', '日次平均マージ時間', '時間 (分)');
+    await this.generateLineChart(allMetrics.issueTimeSeries.daily.closedIssues, 'issue_time_series_closed_issues_daily.png', '日次クローズされたIssue数', 'Issue数');
+    await this.generateLineChart(allMetrics.issueTimeSeries.daily.avgIssueResolutionTime, 'issue_time_series_avg_issue_resolution_time_daily.png', '日次平均解決時間', '時間 (分)');
+
     let markdownContent = `# 生産性レポート\n\n`;
 
     markdownContent += `## 全体メトリクス\n\n`;
-    markdownContent += `### Pull Request メトリクス\n\n`;
-    markdownContent += `| メトリクス | 値 |\n`;
-    markdownContent += `|---|---|\n`;
-    for (const [key, value] of Object.entries(allMetrics.prMetrics)) {
-      markdownContent += `| ${key} | ${value} |\n`;
-    }
-    markdownContent += `\n`;
+    markdownContent += `### Pull Request メトリクス
 
-    markdownContent += `### Issue メトリクス\n\n`;
-    markdownContent += `| メトリクス | 値 |\n`;
-    markdownContent += `|---|---|\n`;
-    for (const [key, value] of Object.entries(allMetrics.issueMetrics)) {
-      markdownContent += `| ${key} | ${value} |\n`;
-    }
-    markdownContent += `\n`;
+`;
+    markdownContent += `| メトリクス | 値 | 単位 |
+`;
+    markdownContent += `|---|---|---|
+`;
+    markdownContent += `| マージされたPR数 | ${allMetrics.prMetrics.mergedPullRequests} | 回 |
+`;
+    markdownContent += `| 最初のレビューまでの平均時間 | ${allMetrics.prMetrics.avgTimeToFirstReview.toFixed(2)} | 分 |
+`;
+    markdownContent += `| マージまでの平均時間 | ${allMetrics.prMetrics.avgTimeToMerge.toFixed(2)} | 分 |
+`;
+    markdownContent += `| 変更された総行数 | ${allMetrics.prMetrics.totalLinesChanged} | 行 |
+`;
+    markdownContent += `| PRあたりの平均レビューコメント数 | ${allMetrics.prMetrics.avgReviewCommentsPerPR.toFixed(2)} | 回 |
+`;
+    markdownContent += `| PRあたりの平均レビューイテレーション数 | ${allMetrics.prMetrics.avgReviewIterationsPerPR.toFixed(2)} | 回 |
+`;
+    markdownContent += `
+`;
+    markdownContent += `![マージされたPR数](${this._getMarkdownImagePath('overall_pr_merged_pull_requests.png')})
+
+`;
+    markdownContent += `![平均マージ時間](${this._getMarkdownImagePath('overall_pr_avg_time_to_merge.png')})
+
+`;
+
+    markdownContent += `### Issue メトリクス
+
+`;
+    markdownContent += `| メトリクス | 値 | 単位 |
+`;
+    markdownContent += `|---|---|---|
+`;
+    markdownContent += `| クローズされたIssue数 | ${allMetrics.issueMetrics.closedIssues} | 回 |
+`;
+    markdownContent += `| Issue解決までの平均時間 | ${allMetrics.issueMetrics.avgIssueResolutionTime.toFixed(2)} | 分 |
+`;
+    markdownContent += `
+`;
+    markdownContent += `![クローズされたIssue数](${this._getMarkdownImagePath('overall_issue_closed_issues.png')})
+
+`;
+    markdownContent += `![平均Issue解決時間](${this._getMarkdownImagePath('overall_issue_avg_issue_resolution_time.png')})
+
+`;
 
     markdownContent += `## コントリビューター別メトリクス\n\n`;
     if (allMetrics.prContributors.size > 0) {
-      markdownContent += `### Pull Request コントリビューター\n\n`;
+      markdownContent += `### Pull Request コントリビューター
+
+`;
+      markdownContent += `![コントリビューター別マージPR数](${this._getMarkdownImagePath('contributor_pr_merged_pull_requests.png')})
+
+`;
+      markdownContent += `![コントリビューター別平均マージ時間](${this._getMarkdownImagePath('contributor_pr_avg_time_to_merge.png')})
+
+`;
       const firstContributorMetrics = allMetrics.prContributors.values().next().value;
       if (firstContributorMetrics) {
-        const columns = ['コントリビューター', ...Object.keys(firstContributorMetrics)];
-        markdownContent += `| ${columns.join(' | ')} |\n`;
-        markdownContent += `|${columns.map(() => '---').join('|')}|\n`;
-        allMetrics.prContributors.forEach((metrics, contributor) => {
-          const values = Object.values(metrics);
-          markdownContent += `| ${contributor} | ${values.join(' | ')} |\n`;
+        const columns = ['コントリビューター', 'マージされたPR数', '最初のレビューまでの平均時間 (分)', 'マージまでの平均時間 (分)', '変更された総行数', 'レビューコメント数', 'レビューイテレーション数'];
+        markdownContent += `| ${columns.join(' | ')} |
+`;
+        markdownContent += `|${columns.map(() => '---').join('|')}|
+`;
+        // Sort PR contributors by mergedPullRequests in descending order
+        const sortedPrContributors = Array.from(allMetrics.prContributors.entries()).sort(([, a], [, b]) => b.mergedPullRequests - a.mergedPullRequests);
+        sortedPrContributors.forEach(([contributor, metrics]) => {
+          markdownContent += `| ${contributor} | ${metrics.mergedPullRequests} | ${metrics.totalTimeToFirstReview.toFixed(2)} | ${metrics.totalTimeToMerge.toFixed(2)} | ${metrics.totalLinesChanged} | ${metrics.totalReviewComments} | ${metrics.totalReviewIterations} |
+`;
         });
-        markdownContent += `\n`;
+        markdownContent += `
+`;
       }
     }
 
     if (allMetrics.issueContributors.size > 0) {
-      markdownContent += `### Issue コントリビューター\n\n`;
+      markdownContent += `### Issue コントリビューター
+
+`;
+      markdownContent += `![コントリビューター別クローズIssue数](${this._getMarkdownImagePath('contributor_issue_closed_issues.png')})
+
+`;
+      markdownContent += `![コントリビューター別平均Issue解決時間](${this._getMarkdownImagePath('contributor_issue_avg_issue_resolution_time.png')})
+
+`;
       const firstContributorMetrics = allMetrics.issueContributors.values().next().value;
       if (firstContributorMetrics) {
-        const columns = ['コントリビューター', ...Object.keys(firstContributorMetrics)];
-        markdownContent += `| ${columns.join(' | ')} |\n`;
-        markdownContent += `|${columns.map(() => '---').join('|')}|\n`;
-        allMetrics.issueContributors.forEach((metrics, contributor) => {
-          const values = Object.values(metrics);
-          markdownContent += `| ${contributor} | ${values.join(' | ')} |\n`;
+        const columns = ['コントリビューター', 'クローズされたIssue数', 'Issue解決までの平均時間 (分)'];
+        markdownContent += `| ${columns.join(' | ')} |
+`;
+        markdownContent += `|${columns.map(() => '---').join('|')}|
+`;
+        // Sort Issue contributors by closedIssues in descending order
+        const sortedIssueContributors = Array.from(allMetrics.issueContributors.entries()).sort(([, a], [, b]) => b.closedIssues - a.closedIssues);
+        sortedIssueContributors.forEach(([contributor, metrics]) => {
+          markdownContent += `| ${contributor} | ${metrics.closedIssues} | ${metrics.totalIssueResolutionTime.toFixed(2)} |
+`;
         });
-        markdownContent += `\n`;
+        markdownContent += `
+`;
       }
     }
 
@@ -318,13 +398,21 @@ class Reporter {
     // PR Time Series
     const prTimeSeriesData = allMetrics.prTimeSeries.daily; // デフォルトで日次を表示
     if (prTimeSeriesData.mergedPullRequests.labels.length > 0) {
-      markdownContent += `### Pull Request 時系列 (日次)\n\n`;
+      markdownContent += `### Pull Request 時系列 (日次)
+
+`;
+      markdownContent += `![日次マージされたPR数](${this._getMarkdownImagePath('pr_time_series_merged_pull_requests_daily.png')})
+
+`;
+      markdownContent += `![日次平均マージ時間](${this._getMarkdownImagePath('pr_time_series_avg_time_to_merge_daily.png')})
+
+`;
       markdownContent += `| 日付 | マージされたPR数 | 平均マージ時間 (分) |\n`;
       markdownContent += `|---|---|---|\n`;
       prTimeSeriesData.mergedPullRequests.labels.forEach((label: string, index: number) => {
         const mergedPRs = prTimeSeriesData.mergedPullRequests.values[index];
         const avgTimeToMerge = prTimeSeriesData.avgTimeToMerge.values[index];
-        markdownContent += `| ${label} | ${mergedPRs} | ${avgTimeToMerge} |\n`;
+        markdownContent += `| ${label} | ${mergedPRs} | ${avgTimeToMerge.toFixed(2)} |\n`;
       });
       markdownContent += `\n`;
     }
@@ -332,13 +420,21 @@ class Reporter {
     // Issue Time Series
     const issueTimeSeriesData = allMetrics.issueTimeSeries.daily; // デフォルトで日次を表示
     if (issueTimeSeriesData.closedIssues.labels.length > 0) {
-      markdownContent += `### Issue 時系列 (日次)\n\n`;
+      markdownContent += `### Issue 時系列 (日次)
+
+`;
+      markdownContent += `![日次クローズされたIssue数](${this._getMarkdownImagePath('issue_time_series_closed_issues_daily.png')})
+
+`;
+      markdownContent += `![日次平均解決時間](${this._getMarkdownImagePath('issue_time_series_avg_issue_resolution_time_daily.png')})
+
+`;
       markdownContent += `| 日付 | クローズされたIssue数 | 平均解決時間 (分) |\n`;
       markdownContent += `|---|---|---|\n`;
       issueTimeSeriesData.closedIssues.labels.forEach((label: string, index: number) => {
         const closedIssues = issueTimeSeriesData.closedIssues.values[index];
         const avgIssueResolutionTime = issueTimeSeriesData.avgIssueResolutionTime.values[index];
-        markdownContent += `| ${label} | ${closedIssues} | ${avgIssueResolutionTime} |\n`;
+        markdownContent += `| ${label} | ${closedIssues} | ${avgIssueResolutionTime.toFixed(2)} |\n`;
       });
       markdownContent += `\n`;
     }

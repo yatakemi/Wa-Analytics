@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const CACHE_DIR = path.join(process.cwd(), '.cache');
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1時間 (ミリ秒)
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1日 (ミリ秒)
 
 interface CacheEntry<T> {
   timestamp: number;

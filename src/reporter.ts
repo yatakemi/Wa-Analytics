@@ -121,6 +121,60 @@ class Reporter {
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
+  async generateContributorBarChart(contributorMetrics: Map<string, any>, metricKey: string, filename: string, title: string, yAxisLabel: string): Promise<void> {
+    const labels: string[] = [];
+    const values: number[] = [];
+
+    // Mapを配列に変換し、値でソート（降順）
+    const sortedContributors = Array.from(contributorMetrics.entries()).sort((a, b) => {
+      const valA = a[1][metricKey] || 0;
+      const valB = b[1][metricKey] || 0;
+      return valB - valA;
+    });
+
+    sortedContributors.forEach(([contributor, metrics]) => {
+      labels.push(contributor);
+      values.push(metrics[metricKey] || 0);
+    });
+
+    const configuration: ChartConfiguration<'bar'> = {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: title,
+          data: values,
+          backgroundColor: 'rgba(153, 102, 255, 0.6)',
+          borderColor: 'rgba(153, 102, 255, 1)',
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        indexAxis: 'y', // 棒グラフを横向きにする
+        scales: {
+          x: {
+            beginAtZero: true,
+            title: {
+              display: true,
+              text: yAxisLabel,
+            },
+          },
+        },
+        plugins: {
+          title: {
+            display: true,
+            text: title,
+          },
+        },
+      },
+    };
+
+    const buffer = await this.chartJSNodeCanvas.renderToBuffer(configuration);
+    const outputPath = path.join(this.outputDir, filename);
+    fs.writeFileSync(outputPath, buffer);
+    console.log(`グラフを ${outputPath} に保存しました。`);
+  }
+
   async generateCsvReport(data: any, filename: string): Promise<void> {
     const outputPath = path.join(this.outputDir, filename);
     const columns = Object.keys(data);

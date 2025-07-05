@@ -42,6 +42,12 @@
 *   レビュー参加率
 *   レビューコメントのポジティブ/ネガティブ比率（高度な機能、自然言語処理が必要）
 
+### DORA メトリクス
+*   **デプロイ頻度 (Deployment Frequency)**: 組織がどのくらいの頻度でソフトウェアを本番環境にリリースしているか。
+*   **変更のリードタイム (Lead Time for Changes)**: コードがコミットされてから本番環境にデプロイされるまでの時間。
+*   **変更障害率 (Change Failure Rate)**: デプロイが原因で本番環境で障害が発生する割合。
+*   **サービス復元時間 (Mean Time to Recovery - MTTR)**: 本番環境での障害から回復するまでの平均時間。
+
 **コントリビューター単位のメトリクス**: 上記の各メトリクスは、コントリビューター（Pull Requestの作成者やIssueのアサイン担当者）ごとに集計・分析されます。
 
 ## 技術スタック
@@ -108,14 +114,15 @@ npm run build
 #### 特定のリポジリと期間で生産性レポートを生成
 
 ```bash
-npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD [--output-dir <path>] [--time-unit <daily|weekly|monthly>] [--output-format <csv|markdown>]
+npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD [--output-dir <path>] [--time-unit <daily|weekly|monthly>] [--output-format <csv|markdown>] [--dora-metrics]
 # 例:
-npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31 --output-dir ./reports --time-unit daily --output-format csv
+npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31 --output-dir ./reports --time-unit daily --output-format csv --dora-metrics
 ```
 
 *   `--output-dir`: 生成されたグラフやレポートを保存するディレクトリを指定します。デフォルトは `./reports` です。
 *   `--time-unit`: 時系列グラフの時間単位を指定します (`daily`, `weekly`, `monthly`)。デフォルトは `daily` です。
 *   `--output-format`: レポートの出力形式を指定します (`csv`, `markdown`)。デフォルトは `markdown` です。
+*   `--dora-metrics`: DORAメトリクスを計算してレポートに含めます。
 
 #### 生成AIによる分析と対策案の提示
 

@@ -214,12 +214,17 @@ class Reporter {
     });
   }
 
-  async generateOverallMetricsCsv(prMetrics: any, issueMetrics: any): Promise<void> {
+  async generateOverallMetricsCsv(prMetrics: any, issueMetrics: any, doraMetrics?: any): Promise<void> {
     const prData = Object.entries(prMetrics).map(([key, value]) => ({ Metric: key, Value: value }));
     await this._writeCsvFile(prData, 'overall_pr_metrics.csv', ['Metric', 'Value']);
 
     const issueData = Object.entries(issueMetrics).map(([key, value]) => ({ Metric: key, Value: value }));
     await this._writeCsvFile(issueData, 'overall_issue_metrics.csv', ['Metric', 'Value']);
+
+    if (doraMetrics) {
+      const doraData = Object.entries(doraMetrics).map(([key, value]) => ({ Metric: key, Value: value }));
+      await this._writeCsvFile(doraData, 'overall_dora_metrics.csv', ['Metric', 'Value']);
+    }
   }
 
   async generateContributorMetricsCsv(prContributors: Map<string, any>, issueContributors: Map<string, any>): Promise<void> {
@@ -274,6 +279,14 @@ class Reporter {
     await this.generateChart({ labels: ['Closed Issues'], values: [allMetrics.issueMetrics.closedIssues] }, path.join(owner, repo, 'overall_issue_closed_issues.png'), 'クローズされたIssue数', 'Issue数');
     await this.generateChart({ labels: ['Avg Issue Resolution Time'], values: [allMetrics.issueMetrics.avgIssueResolutionTime] }, path.join(owner, repo, 'overall_issue_avg_issue_resolution_time.png'), '平均Issue解決時間', '時間 (分)');
 
+    // DORA Metrics Charts
+    if (allMetrics.doraMetrics) {
+      await this.generateChart({ labels: ['Deployment Frequency'], values: [allMetrics.doraMetrics.deploymentFrequency] }, path.join(owner, repo, 'dora_deployment_frequency.png'), 'デプロイ頻度', '回');
+      await this.generateChart({ labels: ['Lead Time for Changes'], values: [allMetrics.doraMetrics.leadTimeForChanges] }, path.join(owner, repo, 'dora_lead_time_for_changes.png'), '変更のリードタイム', '時間');
+      await this.generateChart({ labels: ['Change Failure Rate'], values: [allMetrics.doraMetrics.changeFailureRate] }, path.join(owner, repo, 'dora_change_failure_rate.png'), '変更障害率', '%');
+      await this.generateChart({ labels: ['Mean Time to Recovery'], values: [allMetrics.doraMetrics.meanTimeToRecovery] }, path.join(owner, repo, 'dora_mean_time_to_recovery.png'), 'サービス復元時間', '時間');
+    }
+
     // Contributor Metrics Charts
     await this.generateContributorBarChart(allMetrics.prContributors, 'mergedPullRequests', path.join(owner, repo, 'contributor_pr_merged_pull_requests.png'), 'コントリビューター別マージPR数', 'PR数');
     await this.generateContributorBarChart(allMetrics.prContributors, 'totalTimeToMerge', path.join(owner, repo, 'contributor_pr_avg_time_to_merge.png'), 'コントリビューター別平均マージ時間', '時間 (分)');
@@ -324,7 +337,7 @@ class Reporter {
 
     // レポート生成
     if (outputFormat === 'csv') {
-      await this.generateOverallMetricsCsv(allMetrics.prMetrics, allMetrics.issueMetrics);
+      await this.generateOverallMetricsCsv(allMetrics.prMetrics, allMetrics.issueMetrics, allMetrics.doraMetrics);
       await this.generateContributorMetricsCsv(allMetrics.prContributors, allMetrics.issueContributors);
       await this.generateTimeSeriesCsv(allMetrics.prTimeSeries, allMetrics.issueTimeSeries, timeUnit);
     } else if (outputFormat === 'markdown') {
@@ -386,6 +399,29 @@ class Reporter {
     markdownContent += `![平均Issue解決時間](${this._getMarkdownImagePath('overall_issue_avg_issue_resolution_time.png')})
 
 `;
+
+    if (allMetrics.doraMetrics) {
+      markdownContent += `## DORA メトリクス\n\n`;
+      markdownContent += `| メトリクス | 値 | 単位 |\n`;
+      markdownContent += `|---|---|---|\n`;
+      markdownContent += `| デプロイ頻度 | ${allMetrics.doraMetrics.deploymentFrequency} | 回 |\n`;
+      markdownContent += `| 変更のリードタイム | ${allMetrics.doraMetrics.leadTimeForChanges.toFixed(2)} | 時間 |\n`;
+      markdownContent += `| 変更障害率 | ${allMetrics.doraMetrics.changeFailureRate.toFixed(2)} | % |\n`;
+      markdownContent += `| サービス復元時間 | ${allMetrics.doraMetrics.meanTimeToRecovery.toFixed(2)} | 時間 |\n`;
+      markdownContent += `\n`;
+      markdownContent += `![デプロイ頻度](${this._getMarkdownImagePath('dora_deployment_frequency.png')})
+
+`;
+      markdownContent += `![変更のリードタイム](${this._getMarkdownImagePath('dora_lead_time_for_changes.png')})
+
+`;
+      markdownContent += `![変更障害率](${this._getMarkdownImagePath('dora_change_failure_rate.png')})
+
+`;
+      markdownContent += `![サービス復元時間](${this._getMarkdownImagePath('dora_mean_time_to_recovery.png')})
+
+`;
+    }
 
     markdownContent += `## コントリビューター別メトリクス\n\n`;
     if (allMetrics.prContributors.size > 0) {

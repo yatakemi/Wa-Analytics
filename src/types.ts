@@ -1,11 +1,11 @@
-import { Octokit } from '@octokit/rest';
+import { Endpoints } from '@octokit/types';
 
 // GitHub API Types (簡略化)
-export type PullRequest = Octokit.PullsListResponseItem;
-export type Issue = Octokit.IssuesListForRepoResponseItem;
-export type Commit = Octokit.ReposListCommitsResponseItem;
-export type ReviewComment = Octokit.PullsListReviewCommentsResponseItem;
-export type PullRequestFile = Octokit.PullsListFilesResponseItem;
+export type PullRequest = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}']['response']['data'];
+export type Issue = Endpoints['GET /repos/{owner}/{repo}/issues']['response']['data'][number];
+export type Commit = Endpoints['GET /repos/{owner}/{repo}/commits']['response']['data'][number];
+export type ReviewComment = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}/comments']['response']['data'][number];
+export type PullRequestFile = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}/files']['response']['data'][number];
 
 // Metrics Types
 export interface PullRequestMetrics {
@@ -53,6 +53,13 @@ export interface IssueTimeSeries {
   monthly: { closedIssues: TimeSeriesData; avgIssueResolutionTime: TimeSeriesData };
 }
 
+export interface DoraMetrics {
+  deploymentFrequency: number;
+  leadTimeForChanges: number; // in hours
+  changeFailureRate: number; // percentage
+  meanTimeToRecovery: number; // in hours
+}
+
 export interface AllMetrics {
   prMetrics: PullRequestMetrics;
   issueMetrics: IssueMetrics;
@@ -60,4 +67,5 @@ export interface AllMetrics {
   issueContributors: Map<string, ContributorIssueMetrics>;
   prTimeSeries: PullRequestTimeSeries;
   issueTimeSeries: IssueTimeSeries;
+  doraMetrics?: DoraMetrics; // Optional, as it will be calculated separately
 }

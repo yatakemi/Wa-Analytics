@@ -26,6 +26,7 @@ program
   .option('--summary', 'サマリーレポートを表示')
   .option('--output-format <format>', 'レポート出力形式 (csv, markdown)', 'markdown')
   .option('--analyze-ai', '生成AIによる分析と対策案の提示')
+  .option('--dora-metrics', 'DORAメトリクスを計算してレポートに含める')
   .option('--output-dir <path>', '出力ファイルを保存するディレクトリ', './reports')
   .option('--time-unit <unit>', '時系列グラフの時間単位 (daily, weekly, monthly)', 'daily');
 
@@ -33,7 +34,7 @@ program.parse(process.argv);
 
 const options = program.opts();
 
-async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate: Date, outputDir: string, timeUnit: string, outputFormat: string, analyzeAi: boolean, githubClient: GitHubClient, analyzer: Analyzer, reporter: Reporter, aiAnalyzer: AIAnalyzer | null) {
+async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate: Date, outputDir: string, timeUnit: string, outputFormat: string, analyzeAi: boolean, calculateDoraMetrics: boolean, githubClient: GitHubClient, analyzer: Analyzer, reporter: Reporter, aiAnalyzer: AIAnalyzer | null) {
   console.log(`リポジリ ${owner}/${repo} を分析中...`);
   console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
 
@@ -51,9 +52,17 @@ async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate
 
   const allMetrics: AllMetrics = { prMetrics, issueMetrics, prContributors, issueContributors, prTimeSeries, issueTimeSeries };
 
+  if (calculateDoraMetrics) {
+    console.log('DORAメトリクスを計算中...');
+    allMetrics.doraMetrics = await analyzer.calculateDoraMetrics(owner, repo, startDate, endDate, pulls, issues);
+  }
+
   console.log('\n--- 全体分析結果 ---');
   console.log('Pull Requestメトリクス:', allMetrics.prMetrics);
   console.log('Issueメトリクス:', allMetrics.issueMetrics);
+  if (allMetrics.doraMetrics) {
+    console.log('DORAメトリクス:', allMetrics.doraMetrics);
+  }
 
   console.log('\n--- コントリビューター別Pull Requestメトリクス ---');
   allMetrics.prContributors.forEach((metrics, contributor) => {
@@ -127,7 +136,7 @@ async function main() {
       console.error('エラー: リポジリの指定が不正です。owner/repo 形式で指定してください。');
       process.exit(1);
     }
-    await analyzeRepo(owner, repo, startDate!, endDate!, baseOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, githubClient, analyzer, reporter, aiAnalyzer);
+    await analyzeRepo(owner, repo, startDate!, endDate!, baseOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, options.doraMetrics, githubClient, analyzer, reporter, aiAnalyzer);
 
   } else if (options.allRepos) {
     const org = options.allRepos;
@@ -147,7 +156,7 @@ async function main() {
         fs.mkdirSync(repoOutputDir, { recursive: true });
       }
       const repoReporter = new Reporter(repoOutputDir);
-      await analyzeRepo(repoOwner, repoName, startDate!, endDate!, repoOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, githubClient, analyzer, repoReporter, aiAnalyzer);
+      await analyzeRepo(repoOwner, repoName, startDate!, endDate!, repoOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, options.doraMetrics, githubClient, analyzer, repoReporter, aiAnalyzer);
     }
 
   } else {

@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { Endpoints } from '@octokit/types';
 import { readCache, writeCache } from './cache';
 import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile } from './types';
 
@@ -71,9 +72,12 @@ class GitHubClient {
         const filteredPulls = response.data.filter(pull => {
           const mergedAt = pull.merged_at ? new Date(pull.merged_at) : null;
           return pull.merged_at && mergedAt && mergedAt >= startDate && mergedAt <= endDate;
-        }) as PullRequest[];
+        });
 
-        pulls.push(...filteredPulls);
+        for (const simplePull of filteredPulls) {
+          const detailedPull = await this.getPullRequestDetails(owner, repo, simplePull.number);
+          pulls.push(detailedPull);
+        }
 
         if (response.data.length < 100) {
           hasMore = false;
@@ -107,7 +111,7 @@ class GitHubClient {
         const filteredIssues = response.data.filter(issue => {
           const closedAt = issue.closed_at ? new Date(issue.closed_at) : null;
           return issue.closed_at && closedAt && closedAt >= startDate && closedAt <= endDate && !issue.pull_request;
-        }) as Issue[];
+        });
 
         issues.push(...filteredIssues);
 
@@ -140,7 +144,7 @@ class GitHubClient {
           page,
         });
 
-        commits.push(...(response.data as Commit[]));
+        commits.push(...response.data);
 
         if (response.data.length < 100) {
           hasMore = false;
@@ -170,7 +174,7 @@ class GitHubClient {
           page,
         });
 
-        comments.push(...(response.data as ReviewComment[]));
+        comments.push(...response.data);
 
         if (response.data.length < 100) {
           hasMore = false;
@@ -191,7 +195,87 @@ class GitHubClient {
         repo,
         pull_number,
       });
-      return response.data as PullRequestFile[];
+      return response.data;
+    });
+  }
+
+  async getPullRequestDetails(owner: string, repo: string, pull_number: number): Promise<PullRequest> {
+    const cacheKey = `pr-details-${owner}-${repo}-${pull_number}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const response = await this.octokit.pulls.get({
+        owner,
+        repo,
+        pull_number,
+      });
+      return response.data as PullRequest;
+    });
+  }
+
+  async getDeployments(owner: string, repo: string, startDate: Date, endDate: Date): Promise<Endpoints['GET /repos/{owner}/{repo}/deployments']['response']['data']> {
+    const cacheKey = `deployments-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const deployments: Endpoints['GET /repos/{owner}/{repo}/deployments']['response']['data'] = [];
+      let page = 1;
+      let hasMore = true;
+
+      console.log(`  Deployments: ページ ${page} を取得中...`);
+      while (hasMore) {
+        const response = await this.octokit.repos.listDeployments({
+          owner,
+          repo,
+          per_page: 100,
+          page,
+        });
+
+        const filteredDeployments = response.data.filter(deployment => {
+          const createdAt = new Date(deployment.created_at);
+          return createdAt >= startDate && createdAt <= endDate;
+        });
+
+        deployments.push(...filteredDeployments);
+
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          console.log(`  Deployments: ページ ${page} を取得中... (現在の合計: ${deployments.length})`);
+        }
+      }
+      return deployments;
+    });
+  }
+
+  async getReleases(owner: string, repo: string, startDate: Date, endDate: Date): Promise<Endpoints['GET /repos/{owner}/{repo}/releases']['response']['data']> {
+    const cacheKey = `releases-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const releases: Endpoints['GET /repos/{owner}/{repo}/releases']['response']['data'] = [];
+      let page = 1;
+      let hasMore = true;
+
+      console.log(`  Releases: ページ ${page} を取得中...`);
+      while (hasMore) {
+        const response = await this.octokit.repos.listReleases({
+          owner,
+          repo,
+          per_page: 100,
+          page,
+        });
+
+        const filteredReleases = response.data.filter(release => {
+          const publishedAt = release.published_at ? new Date(release.published_at) : null;
+          return publishedAt && publishedAt >= startDate && publishedAt <= endDate;
+        });
+
+        releases.push(...filteredReleases);
+
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          console.log(`  Releases: ページ ${page} を取得中... (現在の合計: ${releases.length})`);
+        }
+      }
+      return releases;
     });
   }
 }

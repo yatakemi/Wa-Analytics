@@ -1,4 +1,4 @@
-import { differenceInMinutes, parseISO, format, startOfMonth, startOfWeek, startOfDay } from 'date-fns';
+import { differenceInMinutes, parseISO, format, startOfMonth, startOfWeek, startOfDay, differenceInHours } from 'date-fns';
 
 import GitHubClient from './github';
 import {
@@ -11,6 +11,7 @@ import {
   TimeSeriesData,
   PullRequestTimeSeries,
   IssueTimeSeries,
+  DoraMetrics,
 } from './types';
 
 class Analyzer {
@@ -43,12 +44,13 @@ class Analyzer {
 
     for (let i = 0; i < totalPulls; i++) {
       const pull = pulls[i];
+      const pullDetails = await this.githubClient.getPullRequestDetails(owner, repo, pull.number);
       if ((i + 1) % 10 === 0 || (i + 1) === totalPulls) {
         console.log(`    ${i + 1}/${totalPulls} 件のPull Requestを処理しました。`);
       }
 
-      const authorLogin = pull.user?.login || 'unknown';
-      const mergedAt = pull.merged_at ? parseISO(pull.merged_at) : null;
+      const authorLogin = pullDetails.user?.login || 'unknown';
+      const mergedAt = pullDetails.merged_at ? parseISO(pullDetails.merged_at) : null;
 
       let dayKey = '';
       let weekKey = '';
@@ -80,8 +82,8 @@ class Analyzer {
       currentContributorMetrics.mergedPullRequests++;
 
       // Time to Merge
-      if (pull.created_at && pull.merged_at) {
-        const timeToMerge = differenceInMinutes(parseISO(pull.merged_at), parseISO(pull.created_at));
+      if (pullDetails.created_at && pullDetails.merged_at) {
+        const timeToMerge = differenceInMinutes(parseISO(pullDetails.merged_at), parseISO(pullDetails.created_at));
         totalTimeToMerge += timeToMerge;
         currentContributorMetrics.totalTimeToMerge += timeToMerge;
 
@@ -109,12 +111,12 @@ class Analyzer {
       }
 
       // Lines of Code Changed
-      const linesChanged = (pull.additions || 0) + (pull.deletions || 0);
+      const linesChanged = (pullDetails.additions || 0) + (pullDetails.deletions || 0);
       totalLinesChanged += linesChanged;
       currentContributorMetrics.totalLinesChanged += linesChanged;
 
       // Fetch review comments for more accurate metrics
-      const reviewComments = await this.githubClient.getPullRequestReviewComments(owner, repo, pull.number);
+      const reviewComments = await this.githubClient.getPullRequestReviewComments(owner, repo, pullDetails.number);
       totalReviewComments += reviewComments.length;
       currentContributorMetrics.totalReviewComments += reviewComments.length;
 
@@ -126,7 +128,7 @@ class Analyzer {
         }, null);
 
         if (firstReview) {
-          const timeToFirstReview = differenceInMinutes(firstReview, parseISO(pull.created_at));
+          const timeToFirstReview = differenceInMinutes(firstReview, parseISO(pullDetails.created_at));
           totalTimeToFirstReview += timeToFirstReview;
           currentContributorMetrics.totalTimeToFirstReview += timeToFirstReview;
         }
@@ -322,6 +324,76 @@ class Analyzer {
     };
 
     return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { closedIssues: closedIssueDailyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionDailyTimeSeriesData }, weekly: { closedIssues: closedIssueWeeklyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionWeeklyTimeSeriesData }, monthly: { closedIssues: closedIssueMonthlyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionMonthlyTimeSeriesData } } };
+  }
+
+  async calculateDoraMetrics(
+    owner: string,
+    repo: string,
+    startDate: Date,
+    endDate: Date,
+    pulls: PullRequest[],
+    issues: Issue[],
+  ): Promise<DoraMetrics> {
+    console.log(`  DORAメトリクスを計算中...`);
+
+    // 1. デプロイ頻度 (Deployment Frequency)
+    const deployments = await this.githubClient.getDeployments(owner, repo, startDate, endDate);
+    const releases = await this.githubClient.getReleases(owner, repo, startDate, endDate);
+    const deploymentFrequency = deployments.length + releases.length;
+
+    // 2. 変更のリードタイム (Lead Time for Changes)
+    let totalLeadTimeForChanges = 0;
+    let leadTimeCount = 0;
+
+    for (const pull of pulls) {
+      if (pull.merged_at) {
+        const mergedAt = parseISO(pull.merged_at);
+        // Find a deployment that includes this PR's merge commit
+        // This is a simplification. A more robust solution would involve checking commit history.
+        const relevantDeployment = deployments.find(dep => {
+          // Assuming deployment.sha is the commit SHA being deployed
+          // And pull.merge_commit_sha is the merge commit SHA
+          return dep.sha === pull.merge_commit_sha && new Date(dep.created_at) >= mergedAt;
+        });
+
+        if (relevantDeployment) {
+          const leadTime = differenceInHours(new Date(relevantDeployment.created_at), mergedAt);
+          totalLeadTimeForChanges += leadTime;
+          leadTimeCount++;
+        }
+      }
+    }
+
+    const leadTimeForChanges = leadTimeCount > 0 ? totalLeadTimeForChanges / leadTimeCount : 0;
+
+    // 3. 変更障害率 (Change Failure Rate)
+    // This is a simplified approach. A more accurate metric would require external incident tracking.
+    const incidentIssues = issues.filter(issue =>
+      issue.labels.some(label => typeof label === 'object' && (label.name?.toLowerCase().includes('bug') || label.name?.toLowerCase().includes('incident')))
+    );
+    const changeFailureRate = deploymentFrequency > 0 ? (incidentIssues.length / deploymentFrequency) * 100 : 0;
+
+    // 4. サービス復元時間 (Mean Time to Recovery - MTTR)
+    // This is also a simplified approach, based on incident issue resolution time.
+    let totalRecoveryTime = 0;
+    let recoveryCount = 0;
+
+    for (const issue of incidentIssues) {
+      if (issue.created_at && issue.closed_at) {
+        const recoveryTime = differenceInHours(parseISO(issue.closed_at), parseISO(issue.created_at));
+        totalRecoveryTime += recoveryTime;
+        recoveryCount++;
+      }
+    }
+
+    const meanTimeToRecovery = recoveryCount > 0 ? totalRecoveryTime / recoveryCount : 0;
+
+    return {
+      deploymentFrequency,
+      leadTimeForChanges,
+      changeFailureRate,
+      meanTimeToRecovery,
+    };
   }
 }
 

@@ -239,6 +239,7 @@ async function main() {
           issueContributors,
           'totalIssueResolutionTime',
           'contributor_avg_issue_resolution_time.png',
+          'コントリビューター別平均Issue解決時間 (分)',
           '時間 (分)',
         );
       }

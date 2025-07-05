@@ -28,7 +28,8 @@ program
   .option('--summary', 'サマリーレポートを表示')
   .option('--output-format <format>', 'レポート出力形式 (csv, markdown)', 'markdown')
   .option('--analyze-ai', '生成AIによる分析と対策案の提示')
-  .option('--output-dir <path>', '出力ファイルを保存するディレクトリ', './reports');
+  .option('--output-dir <path>', '出力ファイルを保存するディレクトリ', './reports')
+  .option('--time-unit <unit>', '時系列グラフの時間単位 (daily, weekly, monthly)', 'daily');
 
 program.parse(process.argv);
 
@@ -134,49 +135,72 @@ async function main() {
         );
       }
 
-      // 時系列グラフ生成の例 (週次)
-      if (prTimeSeries.weekly.mergedPullRequests.labels.length > 0) {
-        console.log('週ごとのマージされたPull Request数 (ラベル):', prTimeSeries.weekly.mergedPullRequests.labels);
-        console.log('週ごとのマージされたPull Request数 (値):', prTimeSeries.weekly.mergedPullRequests.values);
+      // 時系列グラフ生成
+      const timeUnit = options.timeUnit;
+      let prMergedTimeSeriesData: any;
+      let prAvgTimeToMergeTimeSeriesData: any;
+      let issueClosedTimeSeriesData: any;
+      let issueAvgResolutionTimeSeriesData: any;
+
+      switch (timeUnit) {
+        case 'daily':
+          prMergedTimeSeriesData = prTimeSeries.daily.mergedPullRequests;
+          prAvgTimeToMergeTimeSeriesData = prTimeSeries.daily.avgTimeToMerge;
+          issueClosedTimeSeriesData = issueTimeSeries.daily.closedIssues;
+          issueAvgResolutionTimeSeriesData = issueTimeSeries.daily.avgIssueResolutionTime;
+          break;
+        case 'weekly':
+          prMergedTimeSeriesData = prTimeSeries.weekly.mergedPullRequests;
+          prAvgTimeToMergeTimeSeriesData = prTimeSeries.weekly.avgTimeToMerge;
+          issueClosedTimeSeriesData = issueTimeSeries.weekly.closedIssues;
+          issueAvgResolutionTimeSeriesData = issueTimeSeries.weekly.avgIssueResolutionTime;
+          break;
+        case 'monthly':
+          prMergedTimeSeriesData = prTimeSeries.monthly.mergedPullRequests;
+          prAvgTimeToMergeTimeSeriesData = prTimeSeries.monthly.avgTimeToMerge;
+          issueClosedTimeSeriesData = issueTimeSeries.monthly.closedIssues;
+          issueAvgResolutionTimeSeriesData = issueTimeSeries.monthly.avgIssueResolutionTime;
+          break;
+        default:
+          console.warn('警告: 無効な時間単位が指定されました。日次データを使用します。');
+          prMergedTimeSeriesData = prTimeSeries.daily.mergedPullRequests;
+          prAvgTimeToMergeTimeSeriesData = prTimeSeries.daily.avgTimeToMerge;
+          issueClosedTimeSeriesData = issueTimeSeries.daily.closedIssues;
+          issueAvgResolutionTimeSeriesData = issueTimeSeries.daily.avgIssueResolutionTime;
+      }
+
+      if (prMergedTimeSeriesData.labels.length > 0) {
         await reporter.generateLineChart(
-          prTimeSeries.weekly.mergedPullRequests,
-          'merged_pr_count_weekly_time_series.png',
-          '週ごとのマージされたPull Request数',
+          prMergedTimeSeriesData,
+          `merged_pr_count_${timeUnit}_time_series.png`,
+          `${timeUnit}ごとのマージされたPull Request数`,
           '数'
         );
         await reporter.generateLineChart(
-          prTimeSeries.weekly.avgTimeToMerge,
-          'avg_pr_cycle_time_weekly_time_series.png',
-          '週ごとの平均Pull Requestサイクルタイム (分)',
+          prAvgTimeToMergeTimeSeriesData,
+          `avg_pr_cycle_time_${timeUnit}_time_series.png`,
+          `${timeUnit}ごとの平均Pull Requestサイクルタイム (分)`,
           '時間 (分)'
         );
       }
-      if (issueTimeSeries.weekly.closedIssues.labels.length > 0) {
-        console.log('週ごとのクローズされたIssue数 (ラベル):', issueTimeSeries.weekly.closedIssues.labels);
-        console.log('週ごとのクローズされたIssue数 (値):', issueTimeSeries.weekly.closedIssues.values);
+      if (issueClosedTimeSeriesData.labels.length > 0) {
         await reporter.generateLineChart(
-          issueTimeSeries.weekly.closedIssues,
-          'closed_issues_count_weekly_time_series.png',
-          '週ごとのクローズされたIssue数',
+          issueClosedTimeSeriesData,
+          `closed_issues_count_${timeUnit}_time_series.png`,
+          `${timeUnit}ごとのクローズされたIssue数`,
           '数'
         );
         await reporter.generateLineChart(
-          issueTimeSeries.weekly.avgIssueResolutionTime,
-          'avg_issue_resolution_time_weekly_time_series.png',
-          '週ごとの平均Issue解決時間 (分)',
+          issueAvgResolutionTimeSeriesData,
+          `avg_issue_resolution_time_${timeUnit}_time_series.png`,
+          `${timeUnit}ごとの平均Issue解決時間 (分)`,
           '時間 (分)'
         );
       }
 
-      // 時系列グラフ生成の例 (月次 - 必要であれば)
-      // if (prTimeSeries.monthly.mergedPullRequests.labels.length > 0) {
-      //   await reporter.generateLineChart(
-      //     prTimeSeries.monthly.mergedPullRequests,
-      //     'merged_pr_count_monthly_time_series.png',
-      //     '月ごとのマージされたPull Request数',
-      //     '数'
-      //   );
-      // }
+      if (options.outputFormat === 'csv') {
+        await reporter.generateCsvReport(allMetrics, 'report.csv');
+      }
 
       if (options.analyzeAi && aiAnalyzer) {
         console.log('生成AIによる分析と対策案を生成中...');

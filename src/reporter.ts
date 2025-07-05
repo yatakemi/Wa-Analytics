@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ChartConfiguration, Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns'; // date-fnsアダプターをインポート
+import { stringify } from 'csv-stringify';
 
 // Chart.jsのすべてのコンポーネントとアダプターを登録
 Chart.register(...registerables);
@@ -86,10 +87,10 @@ class Reporter {
           x: {
             type: 'time',
             time: {
-              unit: 'week',
+              unit: 'day',
               tooltipFormat: 'yyyy-MM-dd',
               displayFormats: {
-                week: 'yyyy-MM-dd'
+                day: 'MM-dd' // 日次表示
               }
             },
             title: {
@@ -120,10 +121,19 @@ class Reporter {
     console.log(`グラフを ${outputPath} に保存しました。`);
   }
 
-  // CSVレポート生成のスケルトン
-  generateCsvReport(data: any, filename: string): void {
-    // TODO: csv-stringify を使用してCSVを生成するロジックを実装
-    console.log(`CSVレポートを ${filename} に生成します (未実装)。`);
+  async generateCsvReport(data: any, filename: string): Promise<void> {
+    const outputPath = path.join(this.outputDir, filename);
+    const columns = Object.keys(data);
+    const values = Object.values(data);
+
+    stringify([columns, values], (err, output) => {
+      if (err) {
+        console.error('CSV生成エラー:', err);
+        return;
+      }
+      fs.writeFileSync(outputPath, output);
+      console.log(`CSVレポートを ${outputPath} に保存しました。`);
+    });
   }
 
   // Markdownレポート生成のスケルトン

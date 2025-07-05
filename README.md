@@ -6,12 +6,13 @@
 
 ## 機能
 
-*   **GitHub連携**: GitHub Personal Access Token (PAT) を使用した認証。分析対象リポジトリ（単一または複数）と分析期間の指定。
-*   **データ収集と分析**: 指定されたリポジトリと期間のGitHubデータを自動的に収集し、各種メトリクスを計算。
+*   **GitHub連携**: GitHub Personal Access Token (PAT) を使用した認証。分析対象リポジトリ（単一または複数）と分析期間の指定。データ取得の進捗表示。
+*   **データキャッシュ**: GitHub API呼び出しのキャッシュ機能により、高速な再実行とAPIレートリミットの消費削減。
+*   **データ収集と分析**: 指定されたリポジトリと期間のGitHubデータを自動的に収集し、各種メトリクスを計算。コントリビューター単位での詳細な分析も可能。
 *   **レポート生成**: 
     *   CLIでのサマリー表示。
     *   詳細なレポート（CSVまたはMarkdown形式）の出力。
-    *   主要メトリクスを可視化するグラフ（PNG/SVG形式）の生成。
+    *   主要メトリクスを可視化するグラフ（PNG/SVG形式）の生成。日次、週次、月次の時系列グラフに対応。
 *   **設定管理**: GitHub PAT、デフォルトリポジトリ、分析期間などの設定を管理。
 *   **生成AIによる分析と対策案提示**: 収集・分析されたメトリクスデータに基づき、生成AIが現状の課題を分析し、生産性向上や品質改善のための具体的な対策案を提示。
 
@@ -41,17 +42,20 @@
 *   レビュー参加率
 *   レビューコメントのポジティブ/ネガティブ比率（高度な機能、自然言語処理が必要）
 
+**コントリビューター単位のメトリクス**: 上記の各メトリクスは、コントリビューター（Pull Requestの作成者やIssueのアサイン担当者）ごとに集計・分析されます。
+
 ## 技術スタック
 
-*   **言語**: Node.js (JavaScript/TypeScript)
+*   **言語**: Node.js (TypeScript)
 *   **ライブラリ**:
     *   `@octokit/rest`: GitHub APIクライアント
     *   `commander`: CLIコマンド解析
     *   `csv-stringify`: CSV出力
     *   `date-fns`: 日付処理
-    *   `chart.js`, `chartjs-node-canvas`: グラフ生成
+    *   `chart.js`, `chartjs-node-canvas`, `chartjs-adapter-date-fns`: グラフ生成
     *   `@google/generative-ai`: Google Gemini APIクライアント (またはOpenAI API)
-    *   `dotenv`: 環境変数管理
+    *   `@dotenvx/dotenvx`: 環境変数管理
+    *   `tsx`: TypeScriptコードの直接実行
 
 ## セットアップ
 
@@ -91,7 +95,7 @@ GEMINI_API_KEY="YOUR_GEMINI_API_KEY" # または OPENAI_API_KEY="YOUR_OPENAI_API
 
 ### ビルド
 
-TypeScriptコードをJavaScriptにコンパイルします。
+TypeScriptコードをJavaScriptにコンパイルします。開発中は `npm start` を直接使用できます。
 
 ```bash
 npm run build
@@ -99,13 +103,19 @@ npm run build
 
 ### ツールの実行
 
+`npm start` コマンドは `tsx` を使用してTypeScriptコードを直接実行します。ビルドは不要です。
+
 #### 特定のリポジトリと期間で生産性レポートを生成
 
 ```bash
-npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
+npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD [--output-dir <path>] [--time-unit <daily|weekly|monthly>] [--output-format <csv|markdown>]
 # 例:
-npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31
+npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31 --output-dir ./reports --time-unit daily --output-format csv
 ```
+
+*   `--output-dir`: 生成されたグラフやレポートを保存するディレクトリを指定します。デフォルトは `./reports` です。
+*   `--time-unit`: 時系列グラフの時間単位を指定します (`daily`, `weekly`, `monthly`)。デフォルトは `daily` です。
+*   `--output-format`: レポートの出力形式を指定します (`csv`, `markdown`)。デフォルトは `markdown` です。
 
 #### 生成AIによる分析と対策案の提示
 
@@ -115,9 +125,13 @@ npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
 npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31 --analyze-ai
 ```
 
+#### キャッシュについて
+
+GitHub APIから取得したデータは、`.cache` ディレクトリに一時的に保存されます。これにより、同じ期間とリポジトリで再度実行する際のAPI呼び出しが削減され、処理が高速化されます。キャッシュは1時間で期限切れになります。
+
 #### グラフ出力について
 
-ツールを実行すると、プロジェクトのルートディレクトリに `merged_pr_count.png` や `avg_pr_cycle_time.png` などのグラフ画像ファイルが生成されます。
+ツールを実行すると、指定された出力ディレクトリにグラフ画像ファイル（例: `merged_pr_count_daily_time_series.png`）が生成されます。
 
 ## 貢献
 

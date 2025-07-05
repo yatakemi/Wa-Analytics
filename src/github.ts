@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { readCache, writeCache } from './cache';
 
 class GitHubClient {
   private octokit: Octokit;
@@ -9,133 +10,159 @@ class GitHubClient {
     });
   }
 
-  async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
-    const pulls: any[] = [];
-    let page = 1;
-    let hasMore = true;
-
-    console.log(`  Pull Requests: ページ ${page} を取得中...`);
-    while (hasMore) {
-      const response = await this.octokit.pulls.list({
-        owner,
-        repo,
-        state: 'closed',
-        per_page: 100,
-        page,
-      });
-
-      const filteredPulls = response.data.filter(pull => {
-        const mergedAt = pull.merged_at ? new Date(pull.merged_at) : null;
-        return pull.merged_at && mergedAt && mergedAt >= startDate && mergedAt <= endDate;
-      });
-
-      pulls.push(...filteredPulls);
-
-      if (response.data.length < 100) {
-        hasMore = false;
-      } else {
-        page++;
-        console.log(`  Pull Requests: ページ ${page} を取得中... (現在の合計: ${pulls.length})`);
-      }
+  private async fetchDataAndCache(cacheKey: string, fetchFunction: () => Promise<any[]>): Promise<any[]> {
+    const cachedData = await readCache<any[]>(cacheKey);
+    if (cachedData) {
+      return cachedData;
     }
-    return pulls;
+
+    const data = await fetchFunction();
+    await writeCache(cacheKey, data);
+    return data;
+  }
+
+  async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
+    const cacheKey = `pulls-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const pulls: any[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      console.log(`  Pull Requests: ページ ${page} を取得中...`);
+      while (hasMore) {
+        const response = await this.octokit.pulls.list({
+          owner,
+          repo,
+          state: 'closed',
+          per_page: 100,
+          page,
+        });
+
+        const filteredPulls = response.data.filter(pull => {
+          const mergedAt = pull.merged_at ? new Date(pull.merged_at) : null;
+          return pull.merged_at && mergedAt && mergedAt >= startDate && mergedAt <= endDate;
+        });
+
+        pulls.push(...filteredPulls);
+
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          console.log(`  Pull Requests: ページ ${page} を取得中... (現在の合計: ${pulls.length})`);
+        }
+      }
+      return pulls;
+    });
   }
 
   async getIssues(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
-    const issues: any[] = [];
-    let page = 1;
-    let hasMore = true;
+    const cacheKey = `issues-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const issues: any[] = [];
+      let page = 1;
+      let hasMore = true;
 
-    console.log(`  Issues: ページ ${page} を取得中...`);
-    while (hasMore) {
-      const response = await this.octokit.issues.listForRepo({
-        owner,
-        repo,
-        state: 'closed',
-        since: startDate.toISOString(),
-        per_page: 100,
-        page,
-      });
+      console.log(`  Issues: ページ ${page} を取得中...`);
+      while (hasMore) {
+        const response = await this.octokit.issues.listForRepo({
+          owner,
+          repo,
+          state: 'closed',
+          since: startDate.toISOString(),
+          per_page: 100,
+          page,
+        });
 
-      const filteredIssues = response.data.filter(issue => {
-        const closedAt = issue.closed_at ? new Date(issue.closed_at) : null;
-        return issue.closed_at && closedAt && closedAt >= startDate && closedAt <= endDate && !issue.pull_request;
-      });
+        const filteredIssues = response.data.filter(issue => {
+          const closedAt = issue.closed_at ? new Date(issue.closed_at) : null;
+          return issue.closed_at && closedAt && closedAt >= startDate && closedAt <= endDate && !issue.pull_request;
+        });
 
-      issues.push(...filteredIssues);
+        issues.push(...filteredIssues);
 
-      if (response.data.length < 100) {
-        hasMore = false;
-      } else {
-        page++;
-        console.log(`  Issues: ページ ${page} を取得中... (現在の合計: ${issues.length})`);
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          console.log(`  Issues: ページ ${page} を取得中... (現在の合計: ${issues.length})`);
+        }
       }
-    }
-    return issues;
+      return issues;
+    });
   }
 
   async getCommits(owner: string, repo: string, startDate: Date, endDate: Date): Promise<any[]> {
-    const commits: any[] = [];
-    let page = 1;
-    let hasMore = true;
+    const cacheKey = `commits-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const commits: any[] = [];
+      let page = 1;
+      let hasMore = true;
 
-    console.log(`  Commits: ページ ${page} を取得中...`);
-    while (hasMore) {
-      const response = await this.octokit.repos.listCommits({
-        owner,
-        repo,
-        since: startDate.toISOString(),
-        until: endDate.toISOString(),
-        per_page: 100,
-        page,
-      });
+      console.log(`  Commits: ページ ${page} を取得中...`);
+      while (hasMore) {
+        const response = await this.octokit.repos.listCommits({
+          owner,
+          repo,
+          since: startDate.toISOString(),
+          until: endDate.toISOString(),
+          per_page: 100,
+          page,
+        });
 
-      commits.push(...response.data);
+        commits.push(...response.data);
 
-      if (response.data.length < 100) {
-        hasMore = false;
-      } else {
-        page++;
-        console.log(`  Commits: ページ ${page} を取得中... (現在の合計: ${commits.length})`);
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          console.log(`  Commits: ページ ${page} を取得中... (現在の合計: ${commits.length})`);
+        }
       }
-    }
-    return commits;
+      return commits;
+    });
   }
 
   async getPullRequestReviewComments(owner: string, repo: string, pull_number: number): Promise<any[]> {
-    const comments: any[] = [];
-    let page = 1;
-    let hasMore = true;
+    const cacheKey = `pr-comments-${owner}-${repo}-${pull_number}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const comments: any[] = [];
+      let page = 1;
+      let hasMore = true;
 
-    // console.log(`    PR #${pull_number} のレビューコメント: ページ ${page} を取得中...`); // コメントが多すぎる可能性があるのでコメントアウト
-    while (hasMore) {
-      const response = await this.octokit.pulls.listReviewComments({
-        owner,
-        repo,
-        pull_number,
-        per_page: 100,
-        page,
-      });
+      // console.log(`    PR #${pull_number} のレビューコメント: ページ ${page} を取得中...`); // コメントが多すぎる可能性があるのでコメントアウト
+      while (hasMore) {
+        const response = await this.octokit.pulls.listReviewComments({
+          owner,
+          repo,
+          pull_number,
+          per_page: 100,
+          page,
+        });
 
-      comments.push(...response.data);
+        comments.push(...response.data);
 
-      if (response.data.length < 100) {
-        hasMore = false;
-      } else {
-        page++;
-        // console.log(`    PR #${pull_number} のレビューコメント: ページ ${page} を取得中... (現在の合計: ${comments.length})`);
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+          // console.log(`    PR #${pull_number} のレビューコメント: ページ ${page} を取得中... (現在の合計: ${comments.length})`);
+        }
       }
-    }
-    return comments;
+      return comments;
+    });
   }
 
   async getPullRequestFiles(owner: string, repo: string, pull_number: number): Promise<any[]> {
-    const response = await this.octokit.pulls.listFiles({
-      owner,
-      repo,
-      pull_number,
+    const cacheKey = `pr-files-${owner}-${repo}-${pull_number}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const response = await this.octokit.pulls.listFiles({
+        owner,
+        repo,
+        pull_number,
+      });
+      return response.data;
     });
-    return response.data;
   }
 }
 

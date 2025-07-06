@@ -1,4 +1,4 @@
-# Team Performance Tools
+# Team Performance Tools `Wa Analytics`
 
 ## 概要
 
@@ -15,17 +15,20 @@
 ## 測定指標
 
 ### コード開発
+
 - **Pull Request**: マージ数、レビュー時間、マージ時間、変更行数、レビューコメント数など
 - **Issue**: クローズ数、解決時間
 - **コントリビューター別分析**: 上記指標の個人別集計
 
 ### DevOps (DORAメトリクス)
+
 - **デプロイ頻度**: 本番環境へのリリース頻度
 - **変更のリードタイム**: コミットから本番デプロイまでの時間
 - **変更障害率**: デプロイに起因する障害の発生率
 - **サービス復元時間 (MTTR)**: 障害発生から復旧までの平均時間
 
 ### プロジェクト管理
+
 - **GitHub Projects (v1)**: カードの総数、完了数、平均リードタイム、スループット
 - **GitHub Projects (v2) イテレーション**: イテレーションごとのアイテム数、完了数、スループット
 
@@ -77,24 +80,24 @@ npm start -- --all-repos <organization_name> --start-date YYYY-MM-DD --end-date 
 
 ### コマンドラインオプション
 
-| オプション | 説明 | デフォルト値 |
-| --- | --- | --- |
-| `--repo <owner/repo>` | 分析対象のリポジトリを指定します。 | - |
-| `--all-repos <org>` | 指定した組織の全リポジトリを分析対象とします。 | - |
-| `--start-date <date>` | 分析の開始日 (YYYY-MM-DD)。 | - |
-| `--end-date <date>` | 分析の終了日 (YYYY-MM-DD)。 | - |
-| `--output-dir <path>` | レポートとグラフの出力先ディレクトリ。 | `./reports` |
-| `--output-format <format>` | レポートの出力形式 (`markdown` または `csv`)。 | `markdown` |
-| `--time-unit <unit>` | 時系列グラフの時間単位 (`daily`, `weekly`, `monthly`)。 | `daily` |
-| `--full-report` | DORAメトリクスとAI分析を含むすべての分析を有効化します。 | `false` |
-| `--dora-metrics` | DORAメトリクスを分析に含めます。 | `false` |
-| `--analyze-ai` | AIによる分析と改善提案を生成します。 | `false` |
-| `--project-name <name>` | **[Projects v1]** 分析対象のプロジェクト名。 | - |
-| `--done-column-name <name>` | **[Projects v1]** 完了状態を示すカラム名。 | `Done` |
-| `--project-number <number>` | **[Projects v2]** 分析対象のプロジェクト番号。 | - |
-| `--iteration-field-name <name>` | **[Projects v2]** イテレーションのフィールド名。 | `Iteration` |
-| `--status-field-name <name>` | **[Projects v2]** ステータスのフィールド名。 | `Status` |
-| `--done-status-value <value>` | **[Projects v2]** 完了を示すステータスの値。 | `Done` |
+| オプション                      | 説明                                                     | デフォルト値 |
+| ------------------------------- | -------------------------------------------------------- | ------------ |
+| `--repo <owner/repo>`           | 分析対象のリポジトリを指定します。                       | -            |
+| `--all-repos <org>`             | 指定した組織の全リポジトリを分析対象とします。           | -            |
+| `--start-date <date>`           | 分析の開始日 (YYYY-MM-DD)。                              | -            |
+| `--end-date <date>`             | 分析の終了日 (YYYY-MM-DD)。                              | -            |
+| `--output-dir <path>`           | レポートとグラフの出力先ディレクトリ。                   | `./reports`  |
+| `--output-format <format>`      | レポートの出力形式 (`markdown` または `csv`)。           | `markdown`   |
+| `--time-unit <unit>`            | 時系列グラフの時間単位 (`daily`, `weekly`, `monthly`)。  | `daily`      |
+| `--full-report`                 | DORAメトリクスとAI分析を含むすべての分析を有効化します。 | `false`      |
+| `--dora-metrics`                | DORAメトリクスを分析に含めます。                         | `false`      |
+| `--analyze-ai`                  | AIによる分析と改善提案を生成します。                     | `false`      |
+| `--project-name <name>`         | **[Projects v1]** 分析対象のプロジェクト名。             | -            |
+| `--done-column-name <name>`     | **[Projects v1]** 完了状態を示すカラム名。               | `Done`       |
+| `--project-number <number>`     | **[Projects v2]** 分析対象のプロジェクト番号。           | -            |
+| `--iteration-field-name <name>` | **[Projects v2]** イテレーションのフィールド名。         | `Iteration`  |
+| `--status-field-name <name>`    | **[Projects v2]** ステータスのフィールド名。             | `Status`     |
+| `--done-status-value <value>`   | **[Projects v2]** 完了を示すステータスの値。             | `Done`       |
 
 ### 実行例
 

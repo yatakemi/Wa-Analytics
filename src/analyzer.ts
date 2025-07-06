@@ -42,9 +42,23 @@ class Analyzer {
     const totalPulls = pulls.length;
     console.log(`  Pull Requestメトリクスを計算中... (合計 ${totalPulls} 件)`);
 
+    console.log(`    Pull Requestの詳細情報を取得中...`);
+    const pullDetailsPromises = pulls.map(pull => this.githubClient.getPullRequestDetails(owner, repo, pull.number));
+    const pullDetailsList = await Promise.all(pullDetailsPromises);
+    console.log(`    Pull Requestの詳細情報を取得しました。`);
+
+    console.log(`    レビューコメントを取得中...`);
+    const reviewCommentsPromises = pullDetailsList.map(pullDetails => this.githubClient.getPullRequestReviewComments(owner, repo, pullDetails.number));
+    const reviewCommentsList = await Promise.all(reviewCommentsPromises);
+    console.log(`    レビューコメントを取得しました。`);
+
+    const reviewCommentsMap = new Map<number, any[]>();
+    pullDetailsList.forEach((pullDetails, index) => {
+      reviewCommentsMap.set(pullDetails.number, reviewCommentsList[index]);
+    });
+
     for (let i = 0; i < totalPulls; i++) {
-      const pull = pulls[i];
-      const pullDetails = await this.githubClient.getPullRequestDetails(owner, repo, pull.number);
+      const pullDetails = pullDetailsList[i];
       if ((i + 1) % 10 === 0 || (i + 1) === totalPulls) {
         console.log(`    ${i + 1}/${totalPulls} 件のPull Requestを処理しました。`);
       }
@@ -116,7 +130,7 @@ class Analyzer {
       currentContributorMetrics.totalLinesChanged += linesChanged;
 
       // Fetch review comments for more accurate metrics
-      const reviewComments = await this.githubClient.getPullRequestReviewComments(owner, repo, pullDetails.number);
+      const reviewComments = reviewCommentsMap.get(pullDetails.number) || [];
       totalReviewComments += reviewComments.length;
       currentContributorMetrics.totalReviewComments += reviewComments.length;
 
@@ -337,8 +351,10 @@ class Analyzer {
     console.log(`  DORAメトリクスを計算中...`);
 
     // 1. デプロイ頻度 (Deployment Frequency)
-    const deployments = await this.githubClient.getDeployments(owner, repo, startDate, endDate);
-    const releases = await this.githubClient.getReleases(owner, repo, startDate, endDate);
+    const [deployments, releases] = await Promise.all([
+      this.githubClient.getDeployments(owner, repo, startDate, endDate),
+      this.githubClient.getReleases(owner, repo, startDate, endDate),
+    ]);
     const deploymentFrequency = deployments.length + releases.length;
 
     // 2. 変更のリードタイム (Lead Time for Changes)

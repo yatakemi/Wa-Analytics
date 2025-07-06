@@ -34,11 +34,18 @@ program
   .option('--project-number <number>', '分析対象のGitHub Projectの番号', parseInt)
   .option('--iteration-field-name <name>', 'イテレーションフィールド名', 'Iteration')
   .option('--status-field-name <name>', 'ステータスフィールド名', 'Status')
-  .option('--done-status-value <name>', '完了ステータスの値', 'Done');
+  .option('--done-status-value <name>', '完了ステータスの値', 'Done')
+  .option('--full-report', '全ての分析を有効化して実行');
 
 program.parse(process.argv);
 
 const options = program.opts();
+
+// Handle --full-report option
+if (options.fullReport) {
+  options.doraMetrics = true;
+  options.analyzeAi = true;
+}
 
 async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate: Date, outputDir: string, timeUnit: string, outputFormat: string, analyzeAi: boolean, calculateDoraMetrics: boolean, projectName: string | undefined, doneColumnName: string, projectNumber: number | undefined, iterationFieldName: string, statusFieldName: string, doneStatusValue: string, githubClient: GitHubClient, analyzer: Analyzer, reporter: Reporter, aiAnalyzer: AIAnalyzer | null) {
   console.log(`リポジリ ${owner}/${repo} を分析中...`);

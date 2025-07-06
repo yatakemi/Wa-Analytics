@@ -1,180 +1,125 @@
-# 開発生産性測定ツール
+# Team Performance Tools
 
 ## 概要
 
-このツールは、GitHubのリポジトリデータから開発活動に関する様々な指標を抽出し、チームや個人の生産性、コード品質、コラボレーションの状況を可視化することで、開発プロセスの改善点特定と意思決定を支援するCLIツールです。
+このツールは、GitHubリポジリのデータを多角的に分析し、チームの開発生産性を可視化するためのCLIツールです。Pull Request、Issue、DORAメトリクス、さらにはGitHub Projectsの進捗状況までを分析し、開発プロセスの改善点発見とデータに基づいた意思決定を支援します。
 
-## 機能
+## 主な機能
 
-*   **GitHub連携**: GitHub Personal Access Token (PAT) を使用した認証。分析対象リポジトリ（単一または複数）と分析期間の指定。データ取得の進捗表示。
-*   **データキャッシュ**: GitHub API呼び出しのキャッシュ機能により、高速な再実行とAPIレートリミットの消費削減。
-*   **データ収集と分析**: 指定されたリポジトリと期間のGitHubデータを自動的に収集し、各種メトリクスを計算。コントリビューター単位での詳細な分析も可能。
-*   **レポート生成**: 
-    *   CLIでのサマリー表示。
-    *   詳細なレポート（CSVまたはMarkdown形式）の出力。CSVは情報ごとにファイルが分かれて出力されます。
-    *   主要メトリクスを可視化するグラフ（PNG/SVG形式）の生成。日次、週次、月次の時系列グラフに対応。
-*   **設定管理**: GitHub PAT、デフォルトリポジトリ、分析期間などの設定を管理。
-*   **生成AIによる分析と対策案提示**: 収集・分析されたメトリクスデータに基づき、生成AIが現状の課題を分析し、生産性向上や品質改善のための具体的な対策案を提示。
+- **多角的なメトリクス分析**: PRやIssueの基本的な指標に加え、DORAメトリクスやGitHub Projectsのイテレーション（スプリント）に基づいた高度な分析が可能です。
+- **柔軟なレポート出力**: 分析結果は、CLIでのサマリー表示のほか、詳細なMarkdownレポートやCSVファイルとして出力できます。
+- **グラフによる可視化**: 主要なメトリクスはグラフ（PNG形式）として出力され、傾向の把握を容易にします。
+- **AIによる分析支援**: GeminiまたはOpenAI APIと連携し、分析結果に対する洞察や改善提案を自動で生成します。
+- **キャッシュ機能**: 一度取得したAPIレスポンスをキャッシュすることで、再実行時のパフォーマンスを向上させます。
 
-## 測定指標（メトリクス）
+## 測定指標
 
-以下のカテゴリで主要なメトリクスを測定します。
+### コード開発
+- **Pull Request**: マージ数、レビュー時間、マージ時間、変更行数、レビューコメント数など
+- **Issue**: クローズ数、解決時間
+- **コントリビューター別分析**: 上記指標の個人別集計
 
-### スループット (Throughput)
-*   マージされたPull Request数
-*   クローズされたIssue数
-*   コミット数
-*   変更行数 (Lines of Code Changed)
+### DevOps (DORAメトリクス)
+- **デプロイ頻度**: 本番環境へのリリース頻度
+- **変更のリードタイム**: コミットから本番デプロイまでの時間
+- **変更障害率**: デプロイに起因する障害の発生率
+- **サービス復元時間 (MTTR)**: 障害発生から復旧までの平均時間
 
-### 効率性・リードタイム (Efficiency / Lead Time)
-*   Pull Requestサイクルタイム (PR作成からマージまでの平均時間)
-    *   Time to First Review (PR作成から最初のレビューコメントが付くまでの平均時間)
-    *   Time to Merge (PR作成からマージされるまでの平均時間)
-*   Issue解決時間 (Issue作成からクローズまでの平均時間)
-
-### コード品質・安定性 (Code Quality / Stability)
-*   レビューコメント数/PR
-*   再オープンされたIssue/PR数
-*   レビューイテレーション数
-
-### コラボレーション (Collaboration)
-*   平均レビュー担当者数/PR
-*   レビュー参加率
-*   レビューコメントのポジティブ/ネガティブ比率（高度な機能、自然言語処理が必要）
-
-### DORA メトリクス
-*   **デプロイ頻度 (Deployment Frequency)**: 組織がどのくらいの頻度でソフトウェアを本番環境にリリースしているか。
-*   **変更のリードタイム (Lead Time for Changes)**: コードがコミットされてから本番環境にデプロイされるまでの時間。
-*   **変更障害率 (Change Failure Rate)**: デプロイが原因で本番環境で障害が発生する割合。
-*   **サービス復元時間 (Mean Time to Recovery - MTTR)**: 本番環境での障害から回復するまでの平均時間。
-
-### GitHub Projects メトリクス
-*   **総カード数**: プロジェクトボード上の全カード数。
-*   **完了カード数**: 指定した完了カラムにあるカード数。
-*   **平均カードリードタイム**: カードが作成されてから完了カラムに移動するまでの平均時間。
-*   **スループット**: 週あたりの完了カード数。
-
-**コントリビューター単位のメトリクス**: 上記の各メトリクスは、コントリビューター（Pull Requestの作成者やIssueのアサイン担当者）ごとに集計・分析されます。
-
-## 技術スタック
-
-*   **言語**: Node.js (TypeScript)
-*   **ライブラリ**:
-    *   `@octokit/rest`: GitHub APIクライアント
-    *   `commander`: CLIコマンド解析
-    *   `csv-stringify`: CSV出力
-    *   `date-fns`: 日付処理
-    *   `chart.js`, `chartjs-node-canvas`, `chartjs-adapter-date-fns`: グラフ生成
-    *   `@google/generative-ai`: Google Gemini APIクライアント (またはOpenAI API)
-    *   `@dotenvx/dotenvx`: 環境変数管理
-    *   `tsx`: TypeScriptコードの直接実行
+### プロジェクト管理
+- **GitHub Projects (v1)**: カードの総数、完了数、平均リードタイム、スループット
+- **GitHub Projects (v2) イテレーション**: イテレーションごとのアイテム数、完了数、スループット
 
 ## セットアップ
 
-### 前提条件
+### 1. 前提条件
 
-*   Node.js (v18以上推奨)
-*   npm
+- Node.js (v18以上を推奨)
+- npm
 
-### インストール
-
-プロジェクトのルートディレクトリで以下のコマンドを実行します。
+### 2. インストール
 
 ```bash
 npm install
 ```
 
-### 環境変数の設定
+### 3. 環境変数の設定
 
-プロジェクトのルートディレクトリに `.env` ファイルを作成し、以下の環境変数を設定してください。
+プロジェクトルートに `.env` ファイルを作成し、以下の情報を設定します。
 
 ```dotenv
+# GitHub Personal Access Token (必須)
 GITHUB_TOKEN="YOUR_GITHUB_PERSONAL_ACCESS_TOKEN"
+
+# AI分析機能を使用する場合 (任意)
 GEMINI_API_KEY="YOUR_GEMINI_API_KEY" # または OPENAI_API_KEY="YOUR_OPENAI_API_KEY"
 ```
 
-#### GitHub Personal Access Token (PAT) の権限
+#### GitHub PATの権限
 
-ファイングレインパーソナルアクセストークンを使用することを推奨します。以下の権限を「読み取り専用 (Read-only)」で付与してください。
+分析には、読み取り権限を持つFine-grained personal access tokenを推奨します。以下の権限を付与してください。
 
-*   **リポジトリのアクセス (Repository access)**:
-    *   `Contents`: Read-only
-    *   `Issues`: Read-only
-    *   `Pull requests`: Read-only
-    *   `Metadata`: Read-only
-    *   `Projects`: Read-only
+- **Repository**: `Contents`, `Issues`, `Pull requests`, `Metadata`
+- **Organization**: `Projects` (Projects v2の分析に必要)
 
 ## 使用方法
 
-### ビルド
+`npm start` コマンド（または `tsx index.ts`）でツールを実行します。
 
-TypeScriptコードをJavaScriptにコンパイルします。開発中は `npm start` を直接使用できます。
-
-```bash
-npm run build
-```
-
-### ツールの実行
-
-`npm start` コマンドは `tsx` を使用してTypeScriptコードを直接実行します。ビルドは不要です。
-
-#### 特定のリポジリと期間で生産性レポートを生成
+### 基本的な使い方
 
 ```bash
-npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD [--output-dir <path>] [--time-unit <daily|weekly|monthly>] [--output-format <csv|markdown>] [--dora-metrics]
-# 例:
-npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31 --output-dir ./reports --time-unit daily --output-format csv --dora-metrics
+# 特定のリポジリを期間指定で分析
+npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
+
+# 組織内の全リポジリを分析
+npm start -- --all-repos <organization_name> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
 ```
 
-*   `--output-dir`: 生成されたグラフやレポートを保存するディレクトリを指定します。デフォルトは `./reports` です。
-*   `--time-unit`: 時系列グラフの時間単位を指定します (`daily`, `weekly`, `monthly`)。デフォルトは `daily` です。
-*   `--output-format`: レポートの出力形式を指定します (`csv`, `markdown`)。デフォルトは `markdown` です。
-*   `--dora-metrics`: DORAメトリクスを計算してレポートに含めます。
+### コマンドラインオプション
 
-#### GitHub Projects の分析
+| オプション | 説明 | デフォルト値 |
+| --- | --- | --- |
+| `--repo <owner/repo>` | 分析対象のリポジリを指定します。 | - |
+| `--all-repos <org>` | 指定した組織の全リポジリを分析対象とします。 | - |
+| `--start-date <date>` | 分析の開始日 (YYYY-MM-DD)。 | - |
+| `--end-date <date>` | 分析の終了日 (YYYY-MM-DD)。 | - |
+| `--output-dir <path>` | レポートとグラフの出力先ディレクトリ。 | `./reports` |
+| `--output-format <format>` | レポートの出力形式 (`markdown` または `csv`)。 | `markdown` |
+| `--time-unit <unit>` | 時系列グラフの時間単位 (`daily`, `weekly`, `monthly`)。 | `daily` |
+| `--full-report` | DORAメトリクスとAI分析を含むすべての分析を有効化します。 | `false` |
+| `--dora-metrics` | DORAメトリクスを分析に含めます。 | `false` |
+| `--analyze-ai` | AIによる分析と改善提案を生成します。 | `false` |
+| `--project-name <name>` | **[Projects v1]** 分析対象のプロジェクト名。 | - |
+| `--done-column-name <name>` | **[Projects v1]** 完了状態を示すカラム名。 | `Done` |
+| `--project-number <number>` | **[Projects v2]** 分析対象のプロジェクト番号。 | - |
+| `--iteration-field-name <name>` | **[Projects v2]** イテレーションのフィールド名。 | `Iteration` |
+| `--status-field-name <name>` | **[Projects v2]** ステータスのフィールド名。 | `Status` |
+| `--done-status-value <value>` | **[Projects v2]** 完了を示すステータスの値。 | `Done` |
+
+### 実行例
 
 ```bash
-npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD --project-name "<project_name>" [--done-column-name "<column_name>"]
-# 例:
-npm start -- --repo my-org/my-repo --start-date 2024-01-01 --end-date 2024-01-31 --project-name "Sprint 1" --done-column-name "完了"
+# フルレポートを生成（DORA, AI分析、イテレーション分析を含む）
+npm start -- \
+  --repo my-org/my-awesome-project \
+  --start-date 2024-01-01 \
+  --end-date 2024-03-31 \
+  --full-report \
+  --project-number 5
+
+# CSV形式で週次のレポートを出力
+npm start -- \
+  --repo my-org/my-awesome-project \
+  --start-date 2024-01-01 \
+  --end-date 2024-03-31 \
+  --output-format csv \
+  --time-unit weekly
 ```
-
-*   `--project-name`: 分析対象のGitHub Project名を指定します。
-*   `--done-column-name`: プロジェクトの完了済みカラム名を指定します。デフォルトは `Done` です。
-
-#### GitHub Projects (v2) のイテレーション分析
-
-```bash
-npm start -- --repo <owner>/<repo> --project-number <project_number> [--iteration-field-name "<field_name>"] [--status-field-name "<field_name>"] [--done-status-value "<status_value>"]
-# 例:
-npm start -- --repo my-org/my-repo --project-number 1 --iteration-field-name "Iteration" --status-field-name "Status" --done-status-value "Done"
-```
-
-*   `--project-number`: 分析対象のGitHub Projectの番号を指定します。
-*   `--iteration-field-name`: イテレーション（スプリント）が設定されているフィールド名を指定します。デフォルトは `Iteration` です。
-*   `--status-field-name`: アイテムのステータスが設定されているフィールド名を指定します。デフォルトは `Status` です。
-*   `--done-status-value`: 「完了」状態を示すステータスの値を指定します。デフォルトは `Done` です。
-
-#### 生成AIによる分析と対策案の提示
-
-```bash
-npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD --analyze-ai
-# 例:
-npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-12-31 --analyze-ai
-```
-
-#### キャッシュについて
-
-GitHub APIから取得したデータは、`.cache` ディレクトリに一時的に保存されます。これにより、同じ期間とリポジリで再度実行する際のAPI呼び出しが削減され、処理が高速化されます。キャッシュは1時間で期限切れになります。
-
-#### グラフ出力について
-
-ツールを実行すると、指定された出力ディレクトリにグラフ画像ファイル（例: `merged_pr_count_daily_time_series.png`）が生成されます。
 
 ## 貢献
 
-貢献を歓迎します。バグ報告や機能提案はIssueとして登録してください。
+バグ報告や機能改善の提案は、GitHubのIssueまでお寄せください。
 
 ## ライセンス
 
-[LICENSE](LICENSE) ファイルを参照してください。
+[LICENSE](LICENSE)ファイルを参照してください。

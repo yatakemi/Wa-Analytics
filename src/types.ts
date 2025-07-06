@@ -60,6 +60,38 @@ export interface DoraMetrics {
   meanTimeToRecovery: number; // in hours
 }
 
+// GitHub Project Types
+export interface Project {
+  id: number;
+  name: string;
+  body: string | null;
+  state: string;
+}
+
+export interface ProjectColumn {
+  id: number;
+  name: string;
+}
+
+export interface ProjectCard {
+  id: number;
+  note: string | null;
+  content_url?: string;
+  column_id: number;
+  creator: {
+    login: string;
+  } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMetrics {
+  totalCards: number;
+  completedCards: number;
+  avgCardLeadTime: number; // in hours
+  throughput: number; // cards per week
+}
+
 export interface AllMetrics {
   prMetrics: PullRequestMetrics;
   issueMetrics: IssueMetrics;
@@ -68,4 +100,5 @@ export interface AllMetrics {
   prTimeSeries: PullRequestTimeSeries;
   issueTimeSeries: IssueTimeSeries;
   doraMetrics?: DoraMetrics; // Optional, as it will be calculated separately
+  projectMetrics?: ProjectMetrics; // Optional
 }

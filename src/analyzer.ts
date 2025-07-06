@@ -12,6 +12,7 @@ import {
   PullRequestTimeSeries,
   IssueTimeSeries,
   DoraMetrics,
+  ProjectMetrics,
 } from './types';
 
 class Analyzer {
@@ -409,6 +410,60 @@ class Analyzer {
       leadTimeForChanges,
       changeFailureRate,
       meanTimeToRecovery,
+    };
+  }
+
+  async calculateProjectMetrics(owner: string, repo: string, projectName: string, doneColumnName: string): Promise<ProjectMetrics | null> {
+    console.log(`  Projectメトリクスを計算中... (${projectName})`);
+
+    const projects = await this.githubClient.listProjects(owner, repo);
+    const targetProject = projects.find(p => p.name === projectName);
+
+    if (!targetProject) {
+      console.log(`    プロジェクト '${projectName}' が見つかりませんでした。`);
+      return null;
+    }
+
+    const columns = await this.githubClient.listProjectColumns(targetProject.id);
+    const doneColumn = columns.find(c => c.name === doneColumnName);
+
+    if (!doneColumn) {
+      console.log(`    完了カラム '${doneColumnName}' が見つかりませんでした。`);
+      return null;
+    }
+
+    let totalCards = 0;
+    let completedCards = 0;
+    let totalLeadTime = 0;
+    const weeklyThroughput: { [key: string]: number } = {};
+
+    for (const column of columns) {
+      const cards = await this.githubClient.listColumnCards(column.id);
+      totalCards += cards.length;
+
+      if (column.id === doneColumn.id) {
+        completedCards += cards.length;
+        for (const card of cards) {
+          const createdAt = parseISO(card.created_at);
+          const updatedAt = parseISO(card.updated_at);
+          const leadTime = differenceInHours(updatedAt, createdAt);
+          totalLeadTime += leadTime;
+
+          const weekKey = format(startOfWeek(updatedAt, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+          weeklyThroughput[weekKey] = (weeklyThroughput[weekKey] || 0) + 1;
+        }
+      }
+    }
+
+    const avgCardLeadTime = completedCards > 0 ? totalLeadTime / completedCards : 0;
+    const throughputValues = Object.values(weeklyThroughput);
+    const throughput = throughputValues.length > 0 ? throughputValues.reduce((a, b) => a + b, 0) / throughputValues.length : 0;
+
+    return {
+      totalCards,
+      completedCards,
+      avgCardLeadTime,
+      throughput,
     };
   }
 }

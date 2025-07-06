@@ -278,6 +278,55 @@ class GitHubClient {
       return releases;
     });
   }
+
+  // Project-related methods
+  async listProjects(owner: string, repo: string): Promise<any[]> {
+    const cacheKey = `projects-${owner}-${repo}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const response = await this.octokit.projects.listForRepo({
+        owner,
+        repo,
+        state: 'open',
+      });
+      return response.data;
+    });
+  }
+
+  async listProjectColumns(project_id: number): Promise<any[]> {
+    const cacheKey = `project-columns-${project_id}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const response = await this.octokit.projects.listColumns({
+        project_id,
+      });
+      return response.data;
+    });
+  }
+
+  async listColumnCards(column_id: number): Promise<any[]> {
+    const cacheKey = `column-cards-${column_id}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const cards: any[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await this.octokit.projects.listCards({
+          column_id,
+          per_page: 100,
+          page,
+        });
+
+        cards.push(...response.data);
+
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      return cards;
+    });
+  }
 }
 
 export default GitHubClient;

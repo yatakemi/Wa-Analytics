@@ -355,50 +355,39 @@ class Reporter {
     markdownContent += `### Pull Request メトリクス
 
 `;
-    markdownContent += `| メトリクス | 値 | 単位 |
-`;
-    markdownContent += `|---|---|---|
-`;
-    markdownContent += `| マージされたPR数 | ${allMetrics.prMetrics.mergedPullRequests} | 回 |
-`;
-    markdownContent += `| 最初のレビューまでの平均時間 | ${allMetrics.prMetrics.avgTimeToFirstReview.toFixed(2)} | 分 |
-`;
-    markdownContent += `| マージまでの平均時間 | ${allMetrics.prMetrics.avgTimeToMerge.toFixed(2)} | 分 |
-`;
-    markdownContent += `| 変更された総行数 | ${allMetrics.prMetrics.totalLinesChanged} | 行 |
-`;
-    markdownContent += `| PRあたりの平均レビューコメント数 | ${allMetrics.prMetrics.avgReviewCommentsPerPR.toFixed(2)} | 回 |
-`;
-    markdownContent += `| PRあたりの平均レビューイテレーション数 | ${allMetrics.prMetrics.avgReviewIterationsPerPR.toFixed(2)} | 回 |
-`;
-    markdownContent += `
-`;
-    markdownContent += `![マージされたPR数](${this._getMarkdownImagePath('overall_pr_merged_pull_requests.png')})
-
-`;
-    markdownContent += `![平均マージ時間](${this._getMarkdownImagePath('overall_pr_avg_time_to_merge.png')})
-
-`;
+    markdownContent += `| メトリクス | 値 | 単位 |\n`;
+    markdownContent += `|---|---|---|\n`;
+    markdownContent += `| マージされたPR数 | ${allMetrics.prMetrics.mergedPullRequests} | 回 |\n`;
+    markdownContent += `| 最初のレビューまでの平均時間 | ${allMetrics.prMetrics.avgTimeToFirstReview.toFixed(2)} | 分 |\n`;
+    markdownContent += `| マージまでの平均時間 | ${allMetrics.prMetrics.avgTimeToMerge.toFixed(2)} | 分 |\n`;
+    markdownContent += `| 変更された総行数 | ${allMetrics.prMetrics.totalLinesChanged} | 行 |\n`;
+    markdownContent += `| PRあたりの平均レビューコメント数 | ${allMetrics.prMetrics.avgReviewCommentsPerPR.toFixed(2)} | 回 |\n`;
+    markdownContent += `| PRあたりの平均レビューイテレーション数 | ${allMetrics.prMetrics.avgReviewIterationsPerPR.toFixed(2)} | 回 |\n`;
+    markdownContent += `\n`;
+    markdownContent += `![マージされたPR数](${this._getMarkdownImagePath('overall_pr_merged_pull_requests.png')})\n\n`;
+    markdownContent += `![平均マージ時間](${this._getMarkdownImagePath('overall_pr_avg_time_to_merge.png')})\n\n`;
 
     markdownContent += `### Issue メトリクス
 
 `;
-    markdownContent += `| メトリクス | 値 | 単位 |
-`;
-    markdownContent += `|---|---|---|
-`;
-    markdownContent += `| クローズされたIssue数 | ${allMetrics.issueMetrics.closedIssues} | 回 |
-`;
-    markdownContent += `| Issue解決までの平均時間 | ${allMetrics.issueMetrics.avgIssueResolutionTime.toFixed(2)} | 分 |
-`;
-    markdownContent += `
-`;
-    markdownContent += `![クローズされたIssue数](${this._getMarkdownImagePath('overall_issue_closed_issues.png')})
+    markdownContent += `| メトリクス | 値 | 単位 |\n`;
+    markdownContent += `|---|---|---|\n`;
+    markdownContent += `| クローズされたIssue数 | ${allMetrics.issueMetrics.closedIssues} | 回 |\n`;
+    markdownContent += `| Issue解決までの平均時間 | ${allMetrics.issueMetrics.avgIssueResolutionTime.toFixed(2)} | 分 |\n`;
+    markdownContent += `\n`;
+    markdownContent += `![クローズされたIssue数](${this._getMarkdownImagePath('overall_issue_closed_issues.png')})\n\n`;
+    markdownContent += `![平均Issue解決時間](${this._getMarkdownImagePath('overall_issue_avg_issue_resolution_time.png')})\n\n`;
 
-`;
-    markdownContent += `![平均Issue解決時間](${this._getMarkdownImagePath('overall_issue_avg_issue_resolution_time.png')})
-
-`;
+    if (allMetrics.projectMetrics) {
+      markdownContent += `### Project メトリクス\n\n`;
+      markdownContent += `| メトリクス | 値 | 単位 |\n`;
+      markdownContent += `|---|---|---|\n`;
+      markdownContent += `| 総カード数 | ${allMetrics.projectMetrics.totalCards} | 枚 |\n`;
+      markdownContent += `| 完了カード数 | ${allMetrics.projectMetrics.completedCards} | 枚 |\n`;
+      markdownContent += `| 平均カードリードタイム | ${allMetrics.projectMetrics.avgCardLeadTime.toFixed(2)} | 時間 |\n`;
+      markdownContent += `| スループット | ${allMetrics.projectMetrics.throughput.toFixed(2)} | 枚/週 |\n`;
+      markdownContent += `\n`;
+    }
 
     if (allMetrics.doraMetrics) {
       markdownContent += `## DORA メトリクス\n\n`;
@@ -409,74 +398,46 @@ class Reporter {
       markdownContent += `| 変更障害率 | ${allMetrics.doraMetrics.changeFailureRate.toFixed(2)} | % |\n`;
       markdownContent += `| サービス復元時間 | ${allMetrics.doraMetrics.meanTimeToRecovery.toFixed(2)} | 時間 |\n`;
       markdownContent += `\n`;
-      markdownContent += `![デプロイ頻度](${this._getMarkdownImagePath('dora_deployment_frequency.png')})
-
-`;
-      markdownContent += `![変更のリードタイム](${this._getMarkdownImagePath('dora_lead_time_for_changes.png')})
-
-`;
-      markdownContent += `![変更障害率](${this._getMarkdownImagePath('dora_change_failure_rate.png')})
-
-`;
-      markdownContent += `![サービス復元時間](${this._getMarkdownImagePath('dora_mean_time_to_recovery.png')})
-
-`;
+      markdownContent += `![デプロイ頻度](${this._getMarkdownImagePath('dora_deployment_frequency.png')})\n\n`;
+      markdownContent += `![変更のリードタイム](${this._getMarkdownImagePath('dora_lead_time_for_changes.png')})\n\n`;
+      markdownContent += `![変更障害率](${this._getMarkdownImagePath('dora_change_failure_rate.png')})\n\n`;
+      markdownContent += `![サービス復元時間](${this._getMarkdownImagePath('dora_mean_time_to_recovery.png')})\n\n`;
     }
 
     markdownContent += `## コントリビューター別メトリクス\n\n`;
     if (allMetrics.prContributors.size > 0) {
-      markdownContent += `### Pull Request コントリビューター
-
-`;
-      markdownContent += `![コントリビューター別マージPR数](${this._getMarkdownImagePath('contributor_pr_merged_pull_requests.png')})
-
-`;
-      markdownContent += `![コントリビューター別平均マージ時間](${this._getMarkdownImagePath('contributor_pr_avg_time_to_merge.png')})
-
-`;
+      markdownContent += `### Pull Request コントリビューター\n\n`;
+      markdownContent += `![コントリビューター別マージPR数](${this._getMarkdownImagePath('contributor_pr_merged_pull_requests.png')})\n\n`;
+      markdownContent += `![コントリビューター別平均マージ時間](${this._getMarkdownImagePath('contributor_pr_avg_time_to_merge.png')})\n\n`;
       const firstContributorMetrics = allMetrics.prContributors.values().next().value;
       if (firstContributorMetrics) {
         const columns = ['コントリビューター', 'マージされたPR数', '最初のレビューまでの平均時間 (分)', 'マージまでの平均時間 (分)', '変更された総行数', 'レビューコメント数', 'レビューイテレーション数'];
-        markdownContent += `| ${columns.join(' | ')} |
-`;
-        markdownContent += `|${columns.map(() => '---').join('|')}|
-`;
+        markdownContent += `| ${columns.join(' | ')} |\n`;
+        markdownContent += `|${columns.map(() => '---').join('|')}|\n`;
         // Sort PR contributors by mergedPullRequests in descending order
         const sortedPrContributors = Array.from(allMetrics.prContributors.entries()).sort(([, a], [, b]) => b.mergedPullRequests - a.mergedPullRequests);
         sortedPrContributors.forEach(([contributor, metrics]) => {
-          markdownContent += `| ${contributor} | ${metrics.mergedPullRequests} | ${metrics.totalTimeToFirstReview.toFixed(2)} | ${metrics.totalTimeToMerge.toFixed(2)} | ${metrics.totalLinesChanged} | ${metrics.totalReviewComments} | ${metrics.totalReviewIterations} |
-`;
+          markdownContent += `| ${contributor} | ${metrics.mergedPullRequests} | ${metrics.totalTimeToFirstReview.toFixed(2)} | ${metrics.totalTimeToMerge.toFixed(2)} | ${metrics.totalLinesChanged} | ${metrics.totalReviewComments} | ${metrics.totalReviewIterations} |\n`;
         });
-        markdownContent += `
-`;
+        markdownContent += `\n`;
       }
     }
 
     if (allMetrics.issueContributors.size > 0) {
-      markdownContent += `### Issue コントリビューター
-
-`;
-      markdownContent += `![コントリビューター別クローズIssue数](${this._getMarkdownImagePath('contributor_issue_closed_issues.png')})
-
-`;
-      markdownContent += `![コントリビューター別平均Issue解決時間](${this._getMarkdownImagePath('contributor_issue_avg_issue_resolution_time.png')})
-
-`;
+      markdownContent += `### Issue コントリビューター\n\n`;
+      markdownContent += `![コントリビューター別クローズIssue数](${this._getMarkdownImagePath('contributor_issue_closed_issues.png')})\n\n`;
+      markdownContent += `![コントリビューター別平均Issue解決時間](${this._getMarkdownImagePath('contributor_issue_avg_issue_resolution_time.png')})\n\n`;
       const firstContributorMetrics = allMetrics.issueContributors.values().next().value;
       if (firstContributorMetrics) {
         const columns = ['コントリビューター', 'クローズされたIssue数', 'Issue解決までの平均時間 (分)'];
-        markdownContent += `| ${columns.join(' | ')} |
-`;
-        markdownContent += `|${columns.map(() => '---').join('|')}|
-`;
+        markdownContent += `| ${columns.join(' | ')} |\n`;
+        markdownContent += `|${columns.map(() => '---').join('|')}|\n`;
         // Sort Issue contributors by closedIssues in descending order
         const sortedIssueContributors = Array.from(allMetrics.issueContributors.entries()).sort(([, a], [, b]) => b.closedIssues - a.closedIssues);
         sortedIssueContributors.forEach(([contributor, metrics]) => {
-          markdownContent += `| ${contributor} | ${metrics.closedIssues} | ${metrics.totalIssueResolutionTime.toFixed(2)} |
-`;
+          markdownContent += `| ${contributor} | ${metrics.closedIssues} | ${metrics.totalIssueResolutionTime.toFixed(2)} |\n`;
         });
-        markdownContent += `
-`;
+        markdownContent += `\n`;
       }
     }
 
@@ -484,15 +445,9 @@ class Reporter {
     // PR Time Series
     const prTimeSeriesData = allMetrics.prTimeSeries.daily; // デフォルトで日次を表示
     if (prTimeSeriesData.mergedPullRequests.labels.length > 0) {
-      markdownContent += `### Pull Request 時系列 (日次)
-
-`;
-      markdownContent += `![日次マージされたPR数](${this._getMarkdownImagePath('pr_time_series_merged_pull_requests_daily.png')})
-
-`;
-      markdownContent += `![日次平均マージ時間](${this._getMarkdownImagePath('pr_time_series_avg_time_to_merge_daily.png')})
-
-`;
+      markdownContent += `### Pull Request 時系列 (日次)\n\n`;
+      markdownContent += `![日次マージされたPR数](${this._getMarkdownImagePath('pr_time_series_merged_pull_requests_daily.png')})\n\n`;
+      markdownContent += `![日次平均マージ時間](${this._getMarkdownImagePath('pr_time_series_avg_time_to_merge_daily.png')})\n\n`;
       markdownContent += `| 日付 | マージされたPR数 | 平均マージ時間 (分) |\n`;
       markdownContent += `|---|---|---|\n`;
       prTimeSeriesData.mergedPullRequests.labels.forEach((label: string, index: number) => {
@@ -506,15 +461,9 @@ class Reporter {
     // Issue Time Series
     const issueTimeSeriesData = allMetrics.issueTimeSeries.daily; // デフォルトで日次を表示
     if (issueTimeSeriesData.closedIssues.labels.length > 0) {
-      markdownContent += `### Issue 時系列 (日次)
-
-`;
-      markdownContent += `![日次クローズされたIssue数](${this._getMarkdownImagePath('issue_time_series_closed_issues_daily.png')})
-
-`;
-      markdownContent += `![日次平均解決時間](${this._getMarkdownImagePath('issue_time_series_avg_issue_resolution_time_daily.png')})
-
-`;
+      markdownContent += `### Issue 時系列 (日次)\n\n`;
+      markdownContent += `![日次クローズされたIssue数](${this._getMarkdownImagePath('issue_time_series_closed_issues_daily.png')})\n\n`;
+      markdownContent += `![日次平均解決時間](${this._getMarkdownImagePath('issue_time_series_avg_issue_resolution_time_daily.png')})\n\n`;
       markdownContent += `| 日付 | クローズされたIssue数 | 平均解決時間 (分) |\n`;
       markdownContent += `|---|---|---|\n`;
       issueTimeSeriesData.closedIssues.labels.forEach((label: string, index: number) => {

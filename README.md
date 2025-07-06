@@ -48,6 +48,12 @@
 *   **変更障害率 (Change Failure Rate)**: デプロイが原因で本番環境で障害が発生する割合。
 *   **サービス復元時間 (Mean Time to Recovery - MTTR)**: 本番環境での障害から回復するまでの平均時間。
 
+### GitHub Projects メトリクス
+*   **総カード数**: プロジェクトボード上の全カード数。
+*   **完了カード数**: 指定した完了カラムにあるカード数。
+*   **平均カードリードタイム**: カードが作成されてから完了カラムに移動するまでの平均時間。
+*   **スループット**: 週あたりの完了カード数。
+
 **コントリビューター単位のメトリクス**: 上記の各メトリクスは、コントリビューター（Pull Requestの作成者やIssueのアサイン担当者）ごとに集計・分析されます。
 
 ## 技術スタック
@@ -96,6 +102,7 @@ GEMINI_API_KEY="YOUR_GEMINI_API_KEY" # または OPENAI_API_KEY="YOUR_OPENAI_API
     *   `Issues`: Read-only
     *   `Pull requests`: Read-only
     *   `Metadata`: Read-only
+    *   `Projects`: Read-only
 
 ## 使用方法
 
@@ -123,6 +130,17 @@ npm start -- --repo octocat/Spoon-Knife --start-date 2023-01-01 --end-date 2023-
 *   `--time-unit`: 時系列グラフの時間単位を指定します (`daily`, `weekly`, `monthly`)。デフォルトは `daily` です。
 *   `--output-format`: レポートの出力形式を指定します (`csv`, `markdown`)。デフォルトは `markdown` です。
 *   `--dora-metrics`: DORAメトリクスを計算してレポートに含めます。
+
+#### GitHub Projects の分析
+
+```bash
+npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD --project-name "<project_name>" [--done-column-name "<column_name>"]
+# 例:
+npm start -- --repo my-org/my-repo --start-date 2024-01-01 --end-date 2024-01-31 --project-name "Sprint 1" --done-column-name "完了"
+```
+
+*   `--project-name`: 分析対象のGitHub Project名を指定します。
+*   `--done-column-name`: プロジェクトの完了済みカラム名を指定します。デフォルトは `Done` です。
 
 #### 生成AIによる分析と対策案の提示
 

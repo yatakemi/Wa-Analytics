@@ -2,7 +2,7 @@ import { Octokit } from '@octokit/rest';
 import { graphql } from '@octokit/graphql';
 import { Endpoints } from '@octokit/types';
 import { readCache, writeCache } from './cache';
-import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile, ProjectV2, ProjectV2Item, Iteration } from './types';
+import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile, ProjectV2, ProjectV2Item, Iteration, DetailedPullRequest, DetailedIssue, IssueComment, TimelineEvent } from './types';
 
 class GitHubClient {
   private octokit: Octokit;
@@ -59,10 +59,10 @@ class GitHubClient {
     });
   }
 
-  async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<PullRequest[]> {
+  async getPullRequests(owner: string, repo: string, startDate: Date, endDate: Date): Promise<DetailedPullRequest[]> {
     const cacheKey = `pulls-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
     return this.fetchDataAndCache(cacheKey, async () => {
-      const pulls: PullRequest[] = [];
+      const pulls: DetailedPullRequest[] = [];
       let page = 1;
       let hasMore = true;
 
@@ -81,26 +81,33 @@ class GitHubClient {
           return pull.merged_at && mergedAt && mergedAt >= startDate && mergedAt <= endDate;
         });
 
-        for (const simplePull of filteredPulls) {
-          const detailedPull = await this.getPullRequestDetails(owner, repo, simplePull.number);
-          pulls.push(detailedPull);
-        }
+        const detailedPullPromises = filteredPulls.map(async (simplePull) => {
+          const [detailedPull, reviewComments, files, timeline] = await Promise.all([
+            this.getPullRequestDetails(owner, repo, simplePull.number),
+            this.getPullRequestReviewComments(owner, repo, simplePull.number),
+            this.getPullRequestFiles(owner, repo, simplePull.number),
+            this.getPullRequestTimeline(owner, repo, simplePull.number),
+          ]);
+          return { ...detailedPull, reviewComments, files, timeline };
+        });
+
+        pulls.push(...(await Promise.all(detailedPullPromises)));
 
         if (response.data.length < 100) {
           hasMore = false;
         } else {
           page++;
-          console.log(`  Pull Requests: ページ ${page} を取得中... (現在の合計: ${pulls.length})`);
+          console.log(`  Pull Requests: ページ ${pulls.length / 100} を取得中... (現在の合計: ${pulls.length})`);
         }
       }
       return pulls;
     });
   }
 
-  async getIssues(owner: string, repo: string, startDate: Date, endDate: Date): Promise<Issue[]> {
+  async getIssues(owner: string, repo: string, startDate: Date, endDate: Date): Promise<DetailedIssue[]> {
     const cacheKey = `issues-${owner}-${repo}-${startDate.getTime()}-${endDate.getTime()}`;
     return this.fetchDataAndCache(cacheKey, async () => {
-      const issues: Issue[] = [];
+      const issues: DetailedIssue[] = [];
       let page = 1;
       let hasMore = true;
 
@@ -120,13 +127,21 @@ class GitHubClient {
           return issue.closed_at && closedAt && closedAt >= startDate && closedAt <= endDate && !issue.pull_request;
         });
 
-        issues.push(...filteredIssues);
+        const detailedIssuePromises = filteredIssues.map(async (simpleIssue) => {
+          const [issueComments, timeline] = await Promise.all([
+            this.getIssueComments(owner, repo, simpleIssue.number),
+            this.getIssueTimeline(owner, repo, simpleIssue.number),
+          ]);
+          return { ...simpleIssue, issueComments, timeline };
+        });
+
+        issues.push(...(await Promise.all(detailedIssuePromises)));
 
         if (response.data.length < 100) {
           hasMore = false;
         } else {
           page++;
-          console.log(`  Issues: ページ ${page} を取得中... (現在の合計: ${issues.length})`);
+          console.log(`  Issues: ページ ${issues.length / 100} を取得中... (現在の合計: ${issues.length})`);
         }
       }
       return issues;
@@ -215,6 +230,84 @@ class GitHubClient {
         pull_number,
       });
       return response.data as PullRequest;
+    });
+  }
+
+  async getIssueComments(owner: string, repo: string, issue_number: number): Promise<Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/comments']['response']['data'][number][]> {
+    const cacheKey = `issue-comments-${owner}-${repo}-${issue_number}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const comments: Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/comments']['response']['data'][number][] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await this.octokit.issues.listComments({
+          owner,
+          repo,
+          issue_number,
+          per_page: 100,
+          page,
+        });
+        comments.push(...response.data);
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      return comments;
+    });
+  }
+
+  async getIssueTimeline(owner: string, repo: string, issue_number: number): Promise<Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/timeline']['response']['data'][number][]> {
+    const cacheKey = `issue-timeline-${owner}-${repo}-${issue_number}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const timeline: Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/timeline']['response']['data'][number][] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await this.octokit.issues.listEventsForTimeline({
+          owner,
+          repo,
+          issue_number,
+          per_page: 100,
+          page,
+        });
+        timeline.push(...response.data);
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      return timeline;
+    });
+  }
+
+  async getPullRequestTimeline(owner: string, repo: string, pull_number: number): Promise<Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/timeline']['response']['data'][number][]> {
+    const cacheKey = `pr-timeline-${owner}-${repo}-${pull_number}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const timeline: Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/timeline']['response']['data'][number][] = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const response = await this.octokit.issues.listEventsForTimeline({
+          owner,
+          repo,
+          issue_number: pull_number, // PR timeline is accessed via issue timeline API
+          per_page: 100,
+          page,
+        });
+        timeline.push(...response.data);
+        if (response.data.length < 100) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      }
+      return timeline;
     });
   }
 

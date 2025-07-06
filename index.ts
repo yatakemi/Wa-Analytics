@@ -52,22 +52,22 @@ async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate
   console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
 
   console.log('Pull Requestデータを取得中...');
-  const pulls = await githubClient.getPullRequests(owner, repo, startDate, endDate);
-  console.log(`取得したPull Request数: ${pulls.length}`);
+  const detailedPulls = await githubClient.getPullRequests(owner, repo, startDate, endDate);
+  console.log(`取得したPull Request数: ${detailedPulls.length}`);
 
   console.log('Issueデータを取得中...');
-  const issues = await githubClient.getIssues(owner, repo, startDate, endDate);
-  console.log(`取得したIssue数: ${issues.length}`);
+  const detailedIssues = await githubClient.getIssues(owner, repo, startDate, endDate);
+  console.log(`取得したIssue数: ${detailedIssues.length}`);
 
   console.log('メトリクスを計算中...');
-  const { overall: prMetrics, contributors: prContributors, timeSeries: prTimeSeries } = await analyzer.calculatePullRequestMetrics(owner, repo, pulls);
-  const { overall: issueMetrics, contributors: issueContributors, timeSeries: issueTimeSeries } = analyzer.calculateIssueMetrics(issues);
+  const { overall: prMetrics, contributors: prContributors, timeSeries: prTimeSeries } = await analyzer.calculatePullRequestMetrics(owner, repo, detailedPulls);
+  const { overall: issueMetrics, contributors: issueContributors, timeSeries: issueTimeSeries } = analyzer.calculateIssueMetrics(detailedIssues);
 
-  const allMetrics: AllMetrics = { prMetrics, issueMetrics, prContributors, issueContributors, prTimeSeries, issueTimeSeries };
+  const allMetrics: AllMetrics = { prMetrics, issueMetrics, prContributors, issueContributors, prTimeSeries, issueTimeSeries, detailedPulls, detailedIssues };
 
   if (calculateDoraMetrics) {
     console.log('DORAメトリクスを計算中...');
-    allMetrics.doraMetrics = await analyzer.calculateDoraMetrics(owner, repo, startDate, endDate, pulls, issues);
+    allMetrics.doraMetrics = await analyzer.calculateDoraMetrics(owner, repo, startDate, endDate, detailedPulls, detailedIssues);
   }
 
   if (projectName) {

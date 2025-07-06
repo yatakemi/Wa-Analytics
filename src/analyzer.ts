@@ -2,8 +2,8 @@ import { differenceInMinutes, parseISO, format, startOfMonth, startOfWeek, start
 
 import GitHubClient from './github';
 import {
-  PullRequest,
-  Issue,
+  DetailedPullRequest,
+  DetailedIssue,
   PullRequestMetrics,
   IssueMetrics,
   ContributorPullRequestMetrics,
@@ -23,7 +23,7 @@ class Analyzer {
     this.githubClient = githubClient;
   }
 
-  async calculatePullRequestMetrics(owner: string, repo: string, pulls: PullRequest[]): Promise<{ overall: PullRequestMetrics; contributors: Map<string, ContributorPullRequestMetrics>; timeSeries: PullRequestTimeSeries }> {
+  async calculatePullRequestMetrics(owner: string, repo: string, pulls: DetailedPullRequest[]): Promise<{ overall: PullRequestMetrics; contributors: Map<string, ContributorPullRequestMetrics>; timeSeries: PullRequestTimeSeries; detailedPulls: DetailedPullRequest[] }> {
     let totalTimeToFirstReview = 0;
     let totalTimeToMerge = 0;
     let totalLinesChanged = 0;
@@ -44,19 +44,12 @@ class Analyzer {
     const totalPulls = pulls.length;
     console.log(`  Pull Requestメトリクスを計算中... (合計 ${totalPulls} 件)`);
 
-    console.log(`    Pull Requestの詳細情報を取得中...`);
-    const pullDetailsPromises = pulls.map(pull => this.githubClient.getPullRequestDetails(owner, repo, pull.number));
-    const pullDetailsList = await Promise.all(pullDetailsPromises);
-    console.log(`    Pull Requestの詳細情報を取得しました。`);
-
-    console.log(`    レビューコメントを取得中...`);
-    const reviewCommentsPromises = pullDetailsList.map(pullDetails => this.githubClient.getPullRequestReviewComments(owner, repo, pullDetails.number));
-    const reviewCommentsList = await Promise.all(reviewCommentsPromises);
-    console.log(`    レビューコメントを取得しました。`);
+    // Pull Requestの詳細情報とレビューコメントは既に取得済みとして処理
+    const pullDetailsList = pulls;
 
     const reviewCommentsMap = new Map<number, any[]>();
-    pullDetailsList.forEach((pullDetails, index) => {
-      reviewCommentsMap.set(pullDetails.number, reviewCommentsList[index]);
+    pullDetailsList.forEach((pullDetails) => {
+      reviewCommentsMap.set(pullDetails.number, pullDetails.reviewComments || []);
     });
 
     for (let i = 0; i < totalPulls; i++) {
@@ -210,10 +203,10 @@ class Analyzer {
       values: sortedMonthlyKeys.map(month => timeToMergeMonthlyTimeSeries[month] ? timeToMergeMonthlyTimeSeries[month].total / timeToMergeMonthlyTimeSeries[month].count : 0),
     };
 
-    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { mergedPullRequests: mergedPRDailyTimeSeriesData, avgTimeToMerge: avgTimeToMergeDailyTimeSeriesData }, weekly: { mergedPullRequests: mergedPRWeeklyTimeSeriesData, avgTimeToMerge: avgTimeToMergeWeeklyTimeSeriesData }, monthly: { mergedPullRequests: mergedPRMonthlyTimeSeriesData, avgTimeToMerge: avgTimeToMergeMonthlyTimeSeriesData } } };
+    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { mergedPullRequests: mergedPRDailyTimeSeriesData, avgTimeToMerge: avgTimeToMergeDailyTimeSeriesData }, weekly: { mergedPullRequests: mergedPRWeeklyTimeSeriesData, avgTimeToMerge: avgTimeToMergeWeeklyTimeSeriesData }, monthly: { mergedPullRequests: mergedPRMonthlyTimeSeriesData, avgTimeToMerge: avgTimeToMergeMonthlyTimeSeriesData } }, detailedPulls: pulls };
   }
 
-  calculateIssueMetrics(issues: Issue[]): { overall: IssueMetrics; contributors: Map<string, ContributorIssueMetrics>; timeSeries: IssueTimeSeries } {
+  calculateIssueMetrics(issues: DetailedIssue[]): { overall: IssueMetrics; contributors: Map<string, ContributorIssueMetrics>; timeSeries: IssueTimeSeries; detailedIssues: DetailedIssue[] } {
     let totalIssueResolutionTime = 0;
     const contributorMetrics = new Map<string, ContributorIssueMetrics>();
 
@@ -339,7 +332,7 @@ class Analyzer {
       values: sortedMonthlyKeys.map(month => issueResolutionMonthlyTimeSeries[month] ? issueResolutionMonthlyTimeSeries[month].total / issueResolutionMonthlyTimeSeries[month].count : 0),
     };
 
-    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { closedIssues: closedIssueDailyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionDailyTimeSeriesData }, weekly: { closedIssues: closedIssueWeeklyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionWeeklyTimeSeriesData }, monthly: { closedIssues: closedIssueMonthlyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionMonthlyTimeSeriesData } } };
+    return { overall: overallMetrics, contributors: contributorMetrics, timeSeries: { daily: { closedIssues: closedIssueDailyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionDailyTimeSeriesData }, weekly: { closedIssues: closedIssueWeeklyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionWeeklyTimeSeriesData }, monthly: { closedIssues: closedIssueMonthlyTimeSeriesData, avgIssueResolutionTime: avgIssueResolutionMonthlyTimeSeriesData } }, detailedIssues: issues };
   }
 
   async calculateDoraMetrics(
@@ -347,8 +340,8 @@ class Analyzer {
     repo: string,
     startDate: Date,
     endDate: Date,
-    pulls: PullRequest[],
-    issues: Issue[],
+    pulls: DetailedPullRequest[],
+    issues: DetailedIssue[],
   ): Promise<DoraMetrics> {
     console.log(`  DORAメトリクスを計算中...`);
 

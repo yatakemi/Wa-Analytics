@@ -2,14 +2,14 @@
 
 ## 概要
 
-このツールは、GitHubリポジリのデータを多角的に分析し、チームの開発生産性を可視化するためのCLIツールです。Pull Request、Issue、DORAメトリクス、さらにはGitHub Projectsの進捗状況までを分析し、開発プロセスの改善点発見とデータに基づいた意思決定を支援します。
+このツールは、GitHubリポジトリのデータを多角的に分析し、チームの開発生産性を可視化するためのCLIツールです。Pull Request、Issue、DORAメトリクス、さらにはGitHub Projectsの進捗状況までを分析し、開発プロセスの改善点発見とデータに基づいた意思決定を支援します。
 
 ## 主な機能
 
 - **多角的なメトリクス分析**: PRやIssueの基本的な指標に加え、DORAメトリクスやGitHub Projectsのイテレーション（スプリント）に基づいた高度な分析が可能です。
 - **柔軟なレポート出力**: 分析結果は、CLIでのサマリー表示のほか、詳細なMarkdownレポートやCSVファイルとして出力できます。
 - **グラフによる可視化**: 主要なメトリクスはグラフ（PNG形式）として出力され、傾向の把握を容易にします。
-- **AIによる分析支援**: GeminiまたはOpenAI APIと連携し、分析結果に対する洞察や改善提案を自動で生成します。
+- **AIによる高度な分析支援**: GeminiまたはOpenAI APIと連携し、集計されたメトリクスデータだけでなく、個々のPull RequestやIssueの詳細情報（コメント内容、ファイル変更、タイムラインイベントなど）も考慮した、より深く具体的な洞察と改善提案を自動で生成します。
 - **キャッシュ機能**: 一度取得したAPIレスポンスをキャッシュすることで、再実行時のパフォーマンスを向上させます。
 
 ## 測定指標
@@ -68,10 +68,10 @@ GEMINI_API_KEY="YOUR_GEMINI_API_KEY" # または OPENAI_API_KEY="YOUR_OPENAI_API
 ### 基本的な使い方
 
 ```bash
-# 特定のリポジリを期間指定で分析
+# 特定のリポジトリを期間指定で分析
 npm start -- --repo <owner>/<repo> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
 
-# 組織内の全リポジリを分析
+# 組織内の全リポジトリを分析
 npm start -- --all-repos <organization_name> --start-date YYYY-MM-DD --end-date YYYY-MM-DD
 ```
 
@@ -79,8 +79,8 @@ npm start -- --all-repos <organization_name> --start-date YYYY-MM-DD --end-date 
 
 | オプション | 説明 | デフォルト値 |
 | --- | --- | --- |
-| `--repo <owner/repo>` | 分析対象のリポジリを指定します。 | - |
-| `--all-repos <org>` | 指定した組織の全リポジリを分析対象とします。 | - |
+| `--repo <owner/repo>` | 分析対象のリポジトリを指定します。 | - |
+| `--all-repos <org>` | 指定した組織の全リポジトリを分析対象とします。 | - |
 | `--start-date <date>` | 分析の開始日 (YYYY-MM-DD)。 | - |
 | `--end-date <date>` | 分析の終了日 (YYYY-MM-DD)。 | - |
 | `--output-dir <path>` | レポートとグラフの出力先ディレクトリ。 | `./reports` |

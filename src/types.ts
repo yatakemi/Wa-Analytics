@@ -7,6 +7,22 @@ export type Commit = Endpoints['GET /repos/{owner}/{repo}/commits']['response'][
 export type ReviewComment = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}/comments']['response']['data'][number];
 export type PullRequestFile = Endpoints['GET /repos/{owner}/{repo}/pulls/{pull_number}/files']['response']['data'][number];
 
+// New types for detailed AI analysis
+export type IssueComment = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/comments']['response']['data'][number];
+export type TimelineEvent = Endpoints['GET /repos/{owner}/{repo}/issues/{issue_number}/timeline']['response']['data'][number];
+
+export interface DetailedPullRequest extends PullRequest {
+  issueComments?: IssueComment[];
+  reviewComments?: ReviewComment[];
+  files?: PullRequestFile[];
+  timeline?: TimelineEvent[];
+}
+
+export interface DetailedIssue extends Issue {
+  issueComments?: IssueComment[];
+  timeline?: TimelineEvent[];
+}
+
 // Metrics Types
 export interface PullRequestMetrics {
   mergedPullRequests: number;
@@ -149,4 +165,6 @@ export interface AllMetrics {
   doraMetrics?: DoraMetrics; // Optional, as it will be calculated separately
   projectMetrics?: ProjectMetrics; // Optional
   iterationMetrics?: IterationMetrics[]; // Optional
+  detailedPulls?: DetailedPullRequest[];
+  detailedIssues?: DetailedIssue[];
 }

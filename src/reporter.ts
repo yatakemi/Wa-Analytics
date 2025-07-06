@@ -385,8 +385,24 @@ class Reporter {
       markdownContent += `| 総カード数 | ${allMetrics.projectMetrics.totalCards} | 枚 |\n`;
       markdownContent += `| 完了カード数 | ${allMetrics.projectMetrics.completedCards} | 枚 |\n`;
       markdownContent += `| 平均カードリードタイム | ${allMetrics.projectMetrics.avgCardLeadTime.toFixed(2)} | 時間 |\n`;
-      markdownContent += `| スループット | ${allMetrics.projectMetrics.throughput.toFixed(2)} | 枚/週 |\n`;
-      markdownContent += `\n`;
+      markdownContent += `| スループット | ${allMetrics.projectMetrics.throughput.toFixed(2)} | 枚/週 |
+`;      markdownContent += `
+`;    }
+
+    if (allMetrics.iterationMetrics) {
+      markdownContent += `### Iteration メトリクス
+
+`;
+      markdownContent += `| イテレーション | 開始日 | 終了日 | 総アイテム数 | 完了アイテム数 | スループット (アイテム/週) |
+`;
+      markdownContent += `|---|---|---|---|---|---|
+`;
+      for (const metrics of allMetrics.iterationMetrics) {
+        markdownContent += `| ${metrics.title} | ${metrics.startDate} | ${metrics.endDate} | ${metrics.totalItems} | ${metrics.completedItems} | ${metrics.throughput.toFixed(2)} |
+`;
+      }
+      markdownContent += `
+`;
     }
 
     if (allMetrics.doraMetrics) {

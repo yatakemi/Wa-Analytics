@@ -142,6 +142,19 @@ npm start -- --repo my-org/my-repo --start-date 2024-01-01 --end-date 2024-01-31
 *   `--project-name`: 分析対象のGitHub Project名を指定します。
 *   `--done-column-name`: プロジェクトの完了済みカラム名を指定します。デフォルトは `Done` です。
 
+#### GitHub Projects (v2) のイテレーション分析
+
+```bash
+npm start -- --repo <owner>/<repo> --project-number <project_number> [--iteration-field-name "<field_name>"] [--status-field-name "<field_name>"] [--done-status-value "<status_value>"]
+# 例:
+npm start -- --repo my-org/my-repo --project-number 1 --iteration-field-name "Iteration" --status-field-name "Status" --done-status-value "Done"
+```
+
+*   `--project-number`: 分析対象のGitHub Projectの番号を指定します。
+*   `--iteration-field-name`: イテレーション（スプリント）が設定されているフィールド名を指定します。デフォルトは `Iteration` です。
+*   `--status-field-name`: アイテムのステータスが設定されているフィールド名を指定します。デフォルトは `Status` です。
+*   `--done-status-value`: 「完了」状態を示すステータスの値を指定します。デフォルトは `Done` です。
+
 #### 生成AIによる分析と対策案の提示
 
 ```bash

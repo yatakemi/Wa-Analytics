@@ -22,7 +22,8 @@
     "chartjs-node-canvas": "^5.0.0",
     "commander": "^12.1.0",
     "csv-stringify": "^6.4.6",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "@octokit/graphql": "^7.0.2"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

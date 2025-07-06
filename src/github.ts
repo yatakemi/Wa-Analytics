@@ -1,14 +1,21 @@
 import { Octokit } from '@octokit/rest';
+import { graphql } from '@octokit/graphql';
 import { Endpoints } from '@octokit/types';
 import { readCache, writeCache } from './cache';
-import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile } from './types';
+import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile, ProjectV2, ProjectV2Item, Iteration } from './types';
 
 class GitHubClient {
   private octokit: Octokit;
+  private graphqlWithAuth: typeof graphql;
 
   constructor(token: string) {
     this.octokit = new Octokit({
       auth: token,
+    });
+    this.graphqlWithAuth = graphql.defaults({
+      headers: {
+        authorization: `token ${token}`,
+      },
     });
   }
 
@@ -325,6 +332,96 @@ class GitHubClient {
         }
       }
       return cards;
+    });
+  }
+
+  // Project v2 (GraphQL) methods
+  async getProjectV2(owner: string, projectNumber: number): Promise<ProjectV2 | null> {
+    const cacheKey = `project-v2-${owner}-${projectNumber}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const query = `
+        query($owner: String!, $projectNumber: Int!) {
+          organization(login: $owner) {
+            projectV2(number: $projectNumber) {
+              id
+              title
+              number
+            }
+          }
+        }
+      `;
+      const { organization } = await this.graphqlWithAuth<{ organization: { projectV2: ProjectV2 } }>(query, { owner, projectNumber });
+      return organization.projectV2;
+    });
+  }
+
+  async getProjectV2Items(projectId: string): Promise<ProjectV2Item[]> {
+    const cacheKey = `project-v2-items-${projectId}`;
+    return this.fetchDataAndCache(cacheKey, async () => {
+      const items: ProjectV2Item[] = [];
+      let cursor = null;
+      let hasNextPage = true;
+
+      while (hasNextPage) {
+        const query = `
+          query($projectId: ID!, $cursor: String) {
+            node(id: $projectId) {
+              ... on ProjectV2 {
+                items(first: 100, after: $cursor) {
+                  pageInfo {
+                    endCursor
+                    hasNextPage
+                  }
+                  nodes {
+                    id
+                    content {
+                      __typename
+                      ... on Issue {
+                        id
+                        number
+                        title
+                        createdAt
+                        closedAt
+                      }
+                      ... on PullRequest {
+                        id
+                        number
+                        title
+                        createdAt
+                        closedAt
+                      }
+                    }
+                    fieldValues(first: 20) {
+                      nodes {
+                        ... on ProjectV2ItemFieldSingleSelectValue {
+                          field {
+                            name
+                          }
+                          name
+                        }
+                        ... on ProjectV2ItemFieldIterationValue {
+                          field {
+                            name
+                          }
+                          title
+                          iterationId
+                          startDate
+                          duration
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `;
+        const { node }: any = await this.graphqlWithAuth(query, { projectId, cursor });
+        items.push(...node.items.nodes);
+        hasNextPage = node.items.pageInfo.hasNextPage;
+        cursor = node.items.pageInfo.endCursor;
+      }
+      return items;
     });
   }
 }

@@ -30,13 +30,17 @@ program
   .option('--output-dir <path>', '出力ファイルを保存するディレクトリ', './reports')
   .option('--time-unit <unit>', '時系列グラフの時間単位 (daily, weekly, monthly)', 'daily')
   .option('--project-name <name>', '分析対象のGitHub Project名')
-  .option('--done-column-name <name>', 'プロジェクトの完了済みカラム名', 'Done');
+  .option('--done-column-name <name>', 'プロジェクトの完了済みカラム名', 'Done')
+  .option('--project-number <number>', '分析対象のGitHub Projectの番号', parseInt)
+  .option('--iteration-field-name <name>', 'イテレーションフィールド名', 'Iteration')
+  .option('--status-field-name <name>', 'ステータスフィールド名', 'Status')
+  .option('--done-status-value <name>', '完了ステータスの値', 'Done');
 
 program.parse(process.argv);
 
 const options = program.opts();
 
-async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate: Date, outputDir: string, timeUnit: string, outputFormat: string, analyzeAi: boolean, calculateDoraMetrics: boolean, projectName: string | undefined, doneColumnName: string, githubClient: GitHubClient, analyzer: Analyzer, reporter: Reporter, aiAnalyzer: AIAnalyzer | null) {
+async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate: Date, outputDir: string, timeUnit: string, outputFormat: string, analyzeAi: boolean, calculateDoraMetrics: boolean, projectName: string | undefined, doneColumnName: string, projectNumber: number | undefined, iterationFieldName: string, statusFieldName: string, doneStatusValue: string, githubClient: GitHubClient, analyzer: Analyzer, reporter: Reporter, aiAnalyzer: AIAnalyzer | null) {
   console.log(`リポジリ ${owner}/${repo} を分析中...`);
   console.log(`期間: ${startDate.toISOString()} - ${endDate.toISOString()}`);
 
@@ -67,6 +71,14 @@ async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate
     }
   }
 
+  if (projectNumber) {
+    console.log('Iterationメトリクスを計算中...');
+    const iterationMetrics = await analyzer.calculateIterationMetrics(owner, projectNumber, iterationFieldName, statusFieldName, doneStatusValue);
+    if (iterationMetrics) {
+      allMetrics.iterationMetrics = iterationMetrics;
+    }
+  }
+
   console.log('\n--- 全体分析結果 ---');
   console.log('Pull Requestメトリクス:', allMetrics.prMetrics);
   console.log('Issueメトリクス:', allMetrics.issueMetrics);
@@ -75,6 +87,9 @@ async function analyzeRepo(owner: string, repo: string, startDate: Date, endDate
   }
   if (allMetrics.projectMetrics) {
     console.log('Projectメトリクス:', allMetrics.projectMetrics);
+  }
+  if (allMetrics.iterationMetrics) {
+    console.log('Iterationメトリクス:', allMetrics.iterationMetrics);
   }
 
   console.log('\n--- コントリビューター別Pull Requestメトリクス ---');
@@ -149,7 +164,7 @@ async function main() {
       console.error('エラー: リポジリの指定が不正です。owner/repo 形式で指定してください。');
       process.exit(1);
     }
-    await analyzeRepo(owner, repo, startDate!, endDate!, baseOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, options.doraMetrics, options.projectName, options.doneColumnName, githubClient, analyzer, reporter, aiAnalyzer);
+    await analyzeRepo(owner, repo, startDate!, endDate!, baseOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, options.doraMetrics, options.projectName, options.doneColumnName, options.projectNumber, options.iterationFieldName, options.statusFieldName, options.doneStatusValue, githubClient, analyzer, reporter, aiAnalyzer);
 
   } else if (options.allRepos) {
     const org = options.allRepos;
@@ -169,7 +184,7 @@ async function main() {
         fs.mkdirSync(repoOutputDir, { recursive: true });
       }
       const repoReporter = new Reporter(repoOutputDir);
-      await analyzeRepo(repoOwner, repoName, startDate!, endDate!, repoOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, options.doraMetrics, options.projectName, options.doneColumnName, githubClient, analyzer, repoReporter, aiAnalyzer);
+      await analyzeRepo(repoOwner, repoName, startDate!, endDate!, repoOutputDir, options.timeUnit, options.outputFormat, options.analyzeAi, options.doraMetrics, options.projectName, options.doneColumnName, options.projectNumber, options.iterationFieldName, options.statusFieldName, options.doneStatusValue, githubClient, analyzer, repoReporter, aiAnalyzer);
     }
 
   } else {

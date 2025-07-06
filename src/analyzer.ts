@@ -13,6 +13,7 @@ import {
   IssueTimeSeries,
   DoraMetrics,
   ProjectMetrics,
+  IterationMetrics,
 } from './types';
 
 class Analyzer {
@@ -465,6 +466,62 @@ class Analyzer {
       avgCardLeadTime,
       throughput,
     };
+  }
+
+  async calculateIterationMetrics(owner: string, projectNumber: number, iterationFieldName: string, statusFieldName: string, doneStatusValue: string): Promise<IterationMetrics[] | null> {
+    console.log(`  Iterationメトリクスを計算中... (Project #${projectNumber})`);
+
+    const project = await this.githubClient.getProjectV2(owner, projectNumber);
+    if (!project) {
+      console.log(`    プロジェクト #${projectNumber} が見つかりませんでした。`);
+      return null;
+    }
+
+    const items = await this.githubClient.getProjectV2Items(project.id);
+    const iterationMetrics = new Map<string, IterationMetrics>();
+
+    for (const item of items) {
+      const iterationFieldValue = item.fieldValues.nodes.find(fv => fv.field?.name === iterationFieldName);
+      const statusFieldValue = item.fieldValues.nodes.find(fv => fv.field?.name === statusFieldName);
+
+      if (iterationFieldValue && 'iterationId' in iterationFieldValue) {
+        const iteration = iterationFieldValue as any;
+        const iterationId = iteration.iterationId;
+
+        if (!iterationMetrics.has(iterationId)) {
+          const startDate = parseISO(iteration.startDate);
+          const endDate = new Date(startDate.getTime() + iteration.duration * 24 * 60 * 60 * 1000);
+          iterationMetrics.set(iterationId, {
+            iterationId,
+            title: iteration.title,
+            startDate: iteration.startDate,
+            endDate: endDate.toISOString(),
+            totalItems: 0,
+            completedItems: 0,
+            storyPoints: 0, // Note: Story points are not yet supported in this implementation
+            completedStoryPoints: 0,
+            throughput: 0,
+          });
+        }
+
+        const metrics = iterationMetrics.get(iterationId)!;
+        metrics.totalItems++;
+
+        if (statusFieldValue && 'name' in statusFieldValue && statusFieldValue.name === doneStatusValue) {
+          metrics.completedItems++;
+        }
+      }
+    }
+
+    // Calculate throughput
+    iterationMetrics.forEach(metrics => {
+      const durationInWeeks = differenceInMinutes(parseISO(metrics.endDate), parseISO(metrics.startDate)) / (60 * 24 * 7);
+      if (durationInWeeks > 0) {
+        metrics.throughput = metrics.completedItems / durationInWeeks;
+      }
+    });
+
+    return Array.from(iterationMetrics.values());
   }
 }
 

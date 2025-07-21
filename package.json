@@ -16,6 +16,7 @@
   "dependencies": {
     "@dotenvx/dotenvx": "^1.0.0",
     "@google/generative-ai": "^0.15.0",
+    "@octokit/graphql": "^7.0.2",
     "@octokit/rest": "^20.1.1",
     "chart.js": "^4.4.3",
     "chartjs-adapter-date-fns": "^3.0.0",
@@ -23,7 +24,7 @@
     "commander": "^12.1.0",
     "csv-stringify": "^6.4.6",
     "date-fns": "^3.6.0",
-    "@octokit/graphql": "^7.0.2"
+    "https-proxy-agent": "^7.0.6"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

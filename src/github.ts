@@ -1,5 +1,6 @@
 import { Octokit } from '@octokit/rest';
 import { graphql } from '@octokit/graphql';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Endpoints } from '@octokit/types';
 import { readCache, writeCache } from './cache';
 import { PullRequest, Issue, Commit, ReviewComment, PullRequestFile, ProjectV2, ProjectV2Item, Iteration, DetailedPullRequest, DetailedIssue, IssueComment, TimelineEvent } from './types';
@@ -9,12 +10,21 @@ class GitHubClient {
   private graphqlWithAuth: typeof graphql;
 
   constructor(token: string) {
+    const proxy = process.env.https_proxy || process.env.HTTPS_PROXY;
+    const agent = proxy ? new HttpsProxyAgent(proxy) : undefined;
+
     this.octokit = new Octokit({
       auth: token,
+      request: {
+        agent,
+      },
     });
     this.graphqlWithAuth = graphql.defaults({
       headers: {
         authorization: `token ${token}`,
+      },
+      request: {
+        agent,
       },
     });
   }
